@@ -8,7 +8,6 @@ import { rateLimit } from "express-rate-limit";
 import { ZodError } from "zod";
 import { authRouter } from "./auth/auth.routes.js";
 import { AuthError } from "./auth/auth.service.js";
-import { rbacRouter } from "./rbac/rbac.routes.js";
 
 export const app = express();
 
@@ -28,7 +27,6 @@ app.get("/health", (_req: Request, res: Response) => {
 });
 
 app.use("/api/auth", authLimiter, authRouter);
-app.use("/api/rbac", rbacRouter);
 
 const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
   if (error instanceof ZodError) {
