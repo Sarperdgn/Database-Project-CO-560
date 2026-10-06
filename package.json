@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js" ,
+    "rbac:bootstrap": "node dist/rbac/run-rbac-bootstrap.js"
   },
   "dependencies": {
     "argon2": "^0.45.1",
