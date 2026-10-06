@@ -10,6 +10,8 @@ services:
       AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD}
       READONLY_DB_USER: ${READONLY_DB_USER}
       READONLY_DB_PASSWORD: ${READONLY_DB_PASSWORD}
+      MARIADB_ROOT_HOST: "%"
+
     ports:
       - "127.0.0.1:3307:3306"
     volumes:
