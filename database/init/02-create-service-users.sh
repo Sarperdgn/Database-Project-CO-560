@@ -4,6 +4,8 @@ set -euo pipefail
 required_vars=(
   MARIADB_ROOT_PASSWORD
   MARIADB_DATABASE
+  ADMIN_DB_USER
+  ADMIN_DB_PASSWORD
   AUTH_DB_USER
   AUTH_DB_PASSWORD
   READONLY_DB_USER
@@ -33,7 +35,9 @@ sql_escape_literal() {
 require_identifier "$MARIADB_DATABASE" "MARIADB_DATABASE"
 require_identifier "$AUTH_DB_USER" "AUTH_DB_USER"
 require_identifier "$READONLY_DB_USER" "READONLY_DB_USER"
+require_identifier "$ADMIN_DB_USER" "ADMIN_DB_USER"
 
+ADMIN_DB_PASSWORD_SQL="$(sql_escape_literal "$ADMIN_DB_PASSWORD")"
 AUTH_DB_PASSWORD_SQL="$(sql_escape_literal "$AUTH_DB_PASSWORD")"
 READONLY_DB_PASSWORD_SQL="$(sql_escape_literal "$READONLY_DB_PASSWORD")"
 
@@ -64,6 +68,13 @@ ALTER USER '${READONLY_DB_USER}'@'%'
 GRANT SELECT
   ON \`${MARIADB_DATABASE}\`.*
   TO '${READONLY_DB_USER}'@'%';
+
+CREATE USER IF NOT EXISTS '${ADMIN_DB_USER}'@'%'
+  IDENTIFIED BY '${ADMIN_DB_PASSWORD_SQL}';
+
+ALTER USER '${ADMIN_DB_USER}'@'%'
+  IDENTIFIED BY '${ADMIN_DB_PASSWORD_SQL}';
+
 SQL
 
 echo "MariaDB service users and least-privilege grants created."
