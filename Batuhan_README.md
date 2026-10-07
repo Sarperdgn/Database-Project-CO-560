@@ -1,8 +1,5 @@
-for 03-create-roles.sh
-
 ## MariaDB Roles and Role-Based Access Control
 
-T## MariaDB Roles and Role-Based Access Control
 This part of the project implements MariaDB roles and role-based access control (RBAC).
 The main goal is to give each database user only the permissions that are required for its task.
 
