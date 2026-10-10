@@ -36,6 +36,17 @@ Different permissions will be assigned to each role, allowing us to demonstrate 
 
 The project will also contain tests that intentionally attempt unauthorized actions in order to verify that the configured MariaDB security mechanisms correctly prevent them.
 
+## Omer Faruk – Fine-Grained Access Control & Database Security
+
+The project will include the following work on fine-grained access control and database security:
+
+- Create restricted views for sensitive information
+- Investigate column-level or object-level access restrictions
+- Implement security-related database configurations
+- Test unauthorized data access scenarios
+- Document how MariaDB protects sensitive resources
+- Prepare examples comparing different privilege levels
+
 ## Technologies
 
 - MariaDB
