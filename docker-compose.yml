@@ -11,6 +11,8 @@ services:
       READONLY_DB_USER: ${READONLY_DB_USER}
       READONLY_DB_PASSWORD: ${READONLY_DB_PASSWORD}
       MARIADB_ROOT_HOST: "%"
+      ADMIN_DB_USER: ${ADMIN_DB_USER}
+      ADMIN_DB_PASSWORD: ${ADMIN_DB_PASSWORD}
 
     ports:
       - "127.0.0.1:3307:3306"
@@ -36,6 +38,7 @@ services:
       DB_USER: ${AUTH_DB_USER}
       DB_PASSWORD: ${AUTH_DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+
     ports:
       - "3000:3000"
     depends_on:
