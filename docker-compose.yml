@@ -1,49 +1,39 @@
 services:
   db:
     image: mariadb:11.8.9
-    container_name: db-auth-mariadb
     restart: unless-stopped
     environment:
-      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
-      MARIADB_DATABASE: ${MARIADB_DATABASE}
-      AUTH_DB_USER: ${AUTH_DB_USER}
-      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD}
-      READONLY_DB_USER: ${READONLY_DB_USER}
-      READONLY_DB_PASSWORD: ${READONLY_DB_PASSWORD}
-      MARIADB_ROOT_HOST: "%"
-      ADMIN_DB_USER: ${ADMIN_DB_USER}
-      ADMIN_DB_PASSWORD: ${ADMIN_DB_PASSWORD}
-
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?Required}
+      MARIADB_DATABASE: ${MARIADB_DATABASE:?Required}
+      ADMIN_DB_PASSWORD: ${ADMIN_DB_PASSWORD:?Required}
+      EMPLOYEE_DB_PASSWORD: ${EMPLOYEE_DB_PASSWORD:?Required}
+      READONLY_DB_PASSWORD: ${READONLY_DB_PASSWORD:?Required}
+      AUDITOR_DB_PASSWORD: ${AUDITOR_DB_PASSWORD:?Required}
+      MARIADB_ROOT_HOST: localhost
     ports:
-      - "127.0.0.1:3307:3306"
+      - "127.0.0.1:${DB_PUBLISHED_PORT:-3307}:3306"
     volumes:
       - mariadb_data:/var/lib/mysql
       - ./database/init:/docker-entrypoint-initdb.d:ro
+      - ./database/security:/opt/project-security:ro
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 5s
+      interval: 2s
       timeout: 5s
-      retries: 20
-
+      retries: 60
   api:
     build: .
-    container_name: db-auth-api
     restart: unless-stopped
     environment:
       NODE_ENV: development
       PORT: 3000
       DB_HOST: db
       DB_PORT: 3306
-      DB_NAME: ${MARIADB_DATABASE}
-      DB_USER: ${AUTH_DB_USER}
-      DB_PASSWORD: ${AUTH_DB_PASSWORD}
-      JWT_SECRET: ${JWT_SECRET}
-
+      DB_NAME: ${MARIADB_DATABASE:?Required}
     ports:
-      - "3000:3000"
+      - "127.0.0.1:${API_PUBLISHED_PORT:-3000}:3000"
     depends_on:
       db:
         condition: service_healthy
-
 volumes:
   mariadb_data:

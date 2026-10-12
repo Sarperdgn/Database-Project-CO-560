@@ -1,0 +1,26 @@
+-- Privileges belong to roles, never to a shared API identity.
+CREATE ROLE role_admin;
+CREATE ROLE role_employee;
+CREATE ROLE role_readonly;
+CREATE ROLE role_auditor;
+GRANT ALL PRIVILEGES ON `{{MARIADB_DATABASE}}`.* TO role_admin;
+GRANT SELECT ON `{{MARIADB_DATABASE}}`.user_directory TO role_employee;
+GRANT UPDATE (username) ON `{{MARIADB_DATABASE}}`.app_users TO role_employee;
+GRANT SELECT (id) ON `{{MARIADB_DATABASE}}`.app_users TO role_employee;
+GRANT SELECT ON `{{MARIADB_DATABASE}}`.user_directory TO role_readonly;
+GRANT SELECT ON `{{MARIADB_DATABASE}}`.login_audit TO role_auditor;
+
+GRANT role_admin TO 'project_admin'@'%';
+GRANT role_employee TO 'project_employee'@'%';
+GRANT role_readonly TO 'project_reader'@'%';
+GRANT role_auditor TO 'project_auditor'@'%';
+SET DEFAULT ROLE role_admin FOR 'project_admin'@'%';
+SET DEFAULT ROLE role_employee FOR 'project_employee'@'%';
+SET DEFAULT ROLE role_readonly FOR 'project_reader'@'%';
+SET DEFAULT ROLE role_auditor FOR 'project_auditor'@'%';
+
+-- MariaDB 11.8 has no DENY statement. Operations without a grant are denied.
+-- No role grants access to mysql.*, global CREATE USER, or GRANT OPTION.
+-- Readers cannot read app_users (including password_hash), write, or use DDL.
+-- Employees can change usernames, but cannot read hashes or change passwords.
+-- Auditors can read audit rows, but cannot change or delete them.

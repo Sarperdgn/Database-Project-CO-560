@@ -41,3 +41,12 @@ CREATE TABLE IF NOT EXISTS login_audit (
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
+
+-- A definer view exposes only public columns; consumers cannot access hashes.
+-- Created by the bootstrap administrator, with no caller-controlled predicates.
+CREATE SQL SECURITY DEFINER VIEW user_directory AS
+  SELECT id, email, username FROM app_users;
+
+-- Example data, not a login account. MariaDB accounts are created separately.
+INSERT INTO app_users (email, username, password_hash)
+VALUES ('student@example.invalid', 'student', 'not-an-application-login');
