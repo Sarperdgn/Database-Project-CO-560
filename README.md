@@ -1,6 +1,6 @@
-# MariaDB Authentication and Access Control
+A project for area 5, "Authentication and access control" for the [MariaDB student database projects, 2026-09](https://mariadb.org/bachelor_hackathon_2026-09/).
 
-CO-560 course project for [MariaDB's authentication and access-control area](https://mariadb.org/bachelor_hackathon_2026-09/), using MariaDB **11.8.9**.
+# MariaDB Authentication and Access Control
 
 **MariaDB enforces access control on the connection itself.** Each kind of user has a real database account and a default role. The optional Express API authenticates a new connection using the caller's MariaDB username and password. It contains no role permission map, shared database credentials, or JWT authorization rules.
 
