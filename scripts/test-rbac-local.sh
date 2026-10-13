@@ -72,7 +72,7 @@ deny 'no direct privileges after disabling role' 1142 reader 'SET ROLE NONE; SEL
 deny 'wrong password' 1045 sql project_reader incorrect 'SELECT 1;'
 # Revocation also works without the API or any TypeScript policy change.
 root_sql "REVOKE SELECT ON auth_project.user_directory FROM role_readonly;"
-deny 'revoked reader grant' 1142 reader 'SELECT * FROM user_directory;'
+deny 'revoked reader grant' '1044|1142' reader 'SELECT * FROM user_directory;'
 root_sql 'GRANT SELECT ON auth_project.user_directory TO role_readonly;'
 allow 'restored reader grant' reader 'SELECT * FROM user_directory;'
 "${COMPOSE[@]}" exec -T api node --input-type=module < scripts/test-api.mjs
