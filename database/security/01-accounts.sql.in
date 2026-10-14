@@ -1,0 +1,6 @@
+-- Executed only when initializing a fresh database volume.
+-- Passwords come from the environment; the loader sets NO_BACKSLASH_ESCAPES.
+CREATE USER 'project_admin'@'%' IDENTIFIED BY '{{ADMIN_DB_PASSWORD}}';
+CREATE USER 'project_employee'@'%' IDENTIFIED BY '{{EMPLOYEE_DB_PASSWORD}}';
+CREATE USER 'project_reader'@'%' IDENTIFIED BY '{{READONLY_DB_PASSWORD}}';
+CREATE USER 'project_auditor'@'%' IDENTIFIED BY '{{AUDITOR_DB_PASSWORD}}';

@@ -1,62 +1,9 @@
-# Integration Notes
+# Backend integration
 
-This module is intentionally isolated so the rest of the team can merge it
-without depending on the internal password-handling code.
+The authoritative security policy is in [`database/security`](database/security), with the schema and directory view in [`database/init/01-schema.sql`](database/init/01-schema.sql).
 
-## Contract for other backend modules
+Each request must execute SQL through a connection authenticated as that caller's real MariaDB account. `src/db.ts` exposes `connectAs(username, password)`; `src/app.ts` demonstrates connection ownership, parameter binding, error translation, and cleanup. The runtime has only database host/port/name configuration, no stored database account credentials.
 
-Protect any Express route with:
+For a new route, use the existing `databaseRoute` wrapper in `src/app.ts`. Validate inputs, execute a fixed parameterized statement on its supplied connection, and return the result. Add required privileges to the appropriate MariaDB role in SQL. Do not introduce a shared privileged pool, a user-selected role, or TypeScript permission checks as the authorization boundary. Test both the SQL directly and the route with allowed and disallowed database accounts.
 
-```ts
-import {
-  requireAuth,
-  type AuthenticatedRequest,
-} from "./auth/auth.middleware.js";
-
-router.get(
-  "/example",
-  requireAuth,
-  async (req: AuthenticatedRequest, res) => {
-    const userId = req.auth!.userId;
-
-    // Use userId as the authenticated identity in your own tables.
-    res.json({ userId });
-  },
-);
-```
-
-The authentication layer exposes only `userId`. Authorization/RBAC can be
-implemented on top of this without changing password handling.
-
-## Foreign keys from other tables
-
-Other teammates may reference:
-
-```sql
-user_id BIGINT UNSIGNED NOT NULL,
-CONSTRAINT fk_example_user
-  FOREIGN KEY (user_id) REFERENCES app_users(id)
-```
-
-## Do not do these things
-
-- Do not store plaintext passwords.
-- Do not let the API connect as MariaDB `root`.
-- Do not give the runtime service account `GRANT OPTION`, `DROP`, or `ALTER`.
-- Do not trust a `userId` sent in the request body when the route is authenticated.
-  Use `req.auth.userId`.
-- Do not log passwords or JWT secrets.
-
-## Team merge suggestion
-
-Sarp's branch can own:
-
-- `docker-compose.yml`
-- `Dockerfile`
-- `database/init/*`
-- `src/auth/*`
-- `src/config.ts`
-- `src/db.ts`
-
-Other team members should import `requireAuth` rather than changing the
-authentication code directly.
+`CURRENT_USER()` identifies the authenticated MariaDB account; `CURRENT_ROLE()` reports the active role. An `app_users.id` is sample domain data, not an authenticated principal. The previous `requireAuth`, application registration, and JWT contract has been removed. See [README.md](README.md) for endpoints, fresh-volume setup, and local transport limitations.
