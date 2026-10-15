@@ -90,7 +90,7 @@ The script confirms the **MariaDB error numbers**, not just unsuccessful command
 
 ## Presentation / evidence checklist
 
-To demonstrate live, run `bash scripts/test-security-audit-local.sh` on screen and show the distinct PASS lines for **actual access-control errors** and **actual audit-log events**. Screenshots/video are optional; for a reproducible submission the code and this README are authoritative. Do **not** commit `.env`, passwords, raw audit logs or unredacted SQL statements with secrets.
+To demonstrate live, run `bash scripts/test-security-audit-local.sh` on screen and show the distinct PASS lines for **actual access-control errors** and **actual audit-log events**. Screenshots/video are optional; for a reproducible submission the code and this README are authoritative. 
 
 ## References
 
