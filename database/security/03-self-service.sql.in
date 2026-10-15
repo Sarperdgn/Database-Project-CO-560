@@ -1,0 +1,71 @@
+CREATE USER 'project_registrar'@'%' IDENTIFIED BY '{{REGISTRATION_DB_PASSWORD}}';
+CREATE ROLE role_registration;
+
+DELIMITER //
+CREATE DEFINER = 'root'@'localhost' PROCEDURE register_account(IN account_name TEXT, IN new_password TEXT)
+SQL SECURITY DEFINER
+BEGIN
+  DECLARE account_created BOOLEAN DEFAULT FALSE;
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION
+  BEGIN
+    IF account_created THEN
+      SET @registration_sql = CONCAT('DROP USER ', CHAR(39), account_name, CHAR(39), '@', CHAR(39), '%', CHAR(39));
+      PREPARE registration_stmt FROM @registration_sql;
+      EXECUTE registration_stmt;
+      DEALLOCATE PREPARE registration_stmt;
+    END IF;
+    SET @registration_sql = NULL;
+    RESIGNAL;
+  END;
+
+  IF account_name IS NULL OR BINARY account_name NOT REGEXP '^signup_[a-z0-9_]{3,24}$' OR BINARY account_name REGEXP '[^a-z0-9_]' THEN
+    SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO = 30001, MESSAGE_TEXT = 'Invalid registration username';
+  END IF;
+  IF new_password IS NULL OR CHAR_LENGTH(new_password) < 12 OR CHAR_LENGTH(new_password) > 128 THEN
+    SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO = 30001, MESSAGE_TEXT = 'Password must have 12 to 128 characters';
+  END IF;
+
+  SET @registration_sql = CONCAT('CREATE USER ', CHAR(39), account_name, CHAR(39), '@', CHAR(39), '%', CHAR(39),
+    ' IDENTIFIED BY PASSWORD ', CHAR(39), PASSWORD(new_password), CHAR(39), ' ACCOUNT LOCK');
+  PREPARE registration_stmt FROM @registration_sql;
+  EXECUTE registration_stmt;
+  DEALLOCATE PREPARE registration_stmt;
+  SET account_created = TRUE;
+
+  SET @registration_sql = CONCAT('GRANT role_readonly TO ', CHAR(39), account_name, CHAR(39), '@', CHAR(39), '%', CHAR(39));
+  PREPARE registration_stmt FROM @registration_sql;
+  EXECUTE registration_stmt;
+  DEALLOCATE PREPARE registration_stmt;
+
+  SET @registration_sql = CONCAT('SET DEFAULT ROLE role_readonly FOR ', CHAR(39), account_name, CHAR(39), '@', CHAR(39), '%', CHAR(39));
+  PREPARE registration_stmt FROM @registration_sql;
+  EXECUTE registration_stmt;
+  DEALLOCATE PREPARE registration_stmt;
+
+  SET @registration_sql = CONCAT('ALTER USER ', CHAR(39), account_name, CHAR(39), '@', CHAR(39), '%', CHAR(39), ' ACCOUNT UNLOCK');
+  PREPARE registration_stmt FROM @registration_sql;
+  EXECUTE registration_stmt;
+  DEALLOCATE PREPARE registration_stmt;
+  SET @registration_sql = NULL;
+END//
+
+CREATE PROCEDURE change_own_password(IN new_password TEXT)
+SQL SECURITY INVOKER
+BEGIN
+  IF new_password IS NULL OR CHAR_LENGTH(new_password) < 12 OR CHAR_LENGTH(new_password) > 128 THEN
+    SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO = 30001, MESSAGE_TEXT = 'Password must have 12 to 128 characters';
+  END IF;
+  SET @password_sql = CONCAT('SET PASSWORD = ', CHAR(39), PASSWORD(new_password), CHAR(39));
+  PREPARE password_stmt FROM @password_sql;
+  EXECUTE password_stmt;
+  DEALLOCATE PREPARE password_stmt;
+  SET @password_sql = NULL;
+END//
+DELIMITER ;
+
+GRANT EXECUTE ON PROCEDURE `{{MARIADB_DATABASE}}`.register_account TO role_registration;
+GRANT role_registration TO 'project_registrar'@'%';
+SET DEFAULT ROLE role_registration FOR 'project_registrar'@'%';
+GRANT EXECUTE ON PROCEDURE `{{MARIADB_DATABASE}}`.change_own_password TO role_readonly;
+GRANT EXECUTE ON PROCEDURE `{{MARIADB_DATABASE}}`.change_own_password TO role_employee;
+GRANT EXECUTE ON PROCEDURE `{{MARIADB_DATABASE}}`.change_own_password TO role_auditor;

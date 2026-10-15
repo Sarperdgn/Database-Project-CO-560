@@ -3,6 +3,7 @@ import type { Connection } from "mysql2/promise";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import { z, ZodError } from "zod";
+import { config } from "./config.js";
 import { connectAs } from "./db.js";
 
 export const app = express();
@@ -39,6 +40,31 @@ function databaseRoute(run: (db: Connection, req: Request, res: Response) => Pro
   };
 }
 
+const passwordSchema = z.string().min(12).max(128);
+
+app.post("/api/auth/register", async (req, res, next) => {
+  let db: Connection | undefined;
+  try {
+    const { username, password } = z.object({
+      username: z.string().regex(/^signup_[a-z0-9_]{3,24}$/),
+      password: passwordSchema,
+    }).strict().parse(req.body);
+    db = await connectAs("project_registrar", config.registrationPassword);
+    await db.execute("CALL register_account(?, ?)", [username, password]);
+    res.status(201).json({ username });
+  } catch (error) {
+    next(error);
+  } finally {
+    if (db) db.destroy();
+  }
+});
+
+app.post("/api/auth/change-password", databaseRoute(async (db, req, res) => {
+  const { newPassword } = z.object({ newPassword: passwordSchema }).strict().parse(req.body);
+  await db.execute("CALL change_own_password(?)", [newPassword]);
+  res.json({ message: "Password changed; use the new password for subsequent requests" });
+}));
+
 app.get("/api/me", databaseRoute(async (db, _req, res) => {
   const [rows] = await db.query("SELECT CURRENT_USER() AS account, CURRENT_ROLE() AS role");
   res.json(rows);
@@ -64,11 +90,13 @@ const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     return;
   }
   const errno = (error as { errno?: number }).errno;
-  if (errno === 1045 || errno === 1044 || errno === 1698) {
+  if (errno === 30001) {
+    res.status(400).json({ error: "Invalid account credentials" });
+  } else if (errno === 1045 || errno === 1044 || errno === 1698) {
     res.status(401).json({ error: "MariaDB authentication failed" });
   } else if (errno === 1142 || errno === 1143 || errno === 1227 || errno === 1370) {
     res.status(403).json({ error: "MariaDB denied this operation" });
-  } else if (errno === 1062) {
+  } else if (errno === 1062 || errno === 1396) {
     res.status(409).json({ error: "Username already exists" });
   } else {
     // Do not log driver error objects: they can contain query/connection data.

@@ -19,7 +19,7 @@ SET DEFAULT ROLE role_employee FOR 'project_employee'@'%';
 SET DEFAULT ROLE role_readonly FOR 'project_reader'@'%';
 SET DEFAULT ROLE role_auditor FOR 'project_auditor'@'%';
 
--- MariaDB 11.8 has no DENY statement. Operations without a grant are denied.
+DENY UPDATE, DELETE ON `{{MARIADB_DATABASE}}`.login_audit TO role_auditor;
 -- No role grants access to mysql.*, global CREATE USER, or GRANT OPTION.
 -- Readers cannot read app_users (including password_hash), write, or use DDL.
 -- Employees can change usernames, but cannot read hashes or change passwords.

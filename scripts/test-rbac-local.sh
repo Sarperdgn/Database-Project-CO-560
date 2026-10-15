@@ -17,6 +17,7 @@ ADMIN_DB_PASSWORD=local-test-admin-password
 EMPLOYEE_DB_PASSWORD=local-test-employee-password
 READONLY_DB_PASSWORD=local-test-readonly-password
 AUDITOR_DB_PASSWORD=local-test-auditor-password
+REGISTRATION_DB_PASSWORD=local-test-registration-password
 DB_PUBLISHED_PORT=0
 API_PUBLISHED_PORT=0
 ENV
@@ -47,6 +48,9 @@ deny() {
   fi
   echo "PASS denied by MariaDB: $label"
 }
+version="$(root_sql 'SELECT VERSION();')"
+[[ "$version" == 13.1.* ]] || { echo "FAIL: expected MariaDB 13.1, found $version"; exit 1; }
+echo "MariaDB version: $version"
 for kind in admin employee readonly auditor; do
   case "$kind" in readonly) actor=reader;; *) actor="$kind";; esac
   actual="$("$actor" 'SELECT CURRENT_ROLE();')"
@@ -75,5 +79,19 @@ root_sql "REVOKE SELECT ON auth_project.user_directory FROM role_readonly;"
 deny 'revoked reader grant' '1044|1142' reader 'SELECT * FROM user_directory;'
 root_sql 'GRANT SELECT ON auth_project.user_directory TO role_readonly;'
 allow 'restored reader grant' reader 'SELECT * FROM user_directory;'
+root_sql 'GRANT UPDATE, DELETE ON auth_project.login_audit TO role_auditor;'
+deny 'DENY overrides later UPDATE grant' 1142 auditor "UPDATE login_audit SET reason='blocked' WHERE id=999999999;"
+deny 'DENY overrides later DELETE grant' 1142 auditor 'DELETE FROM login_audit WHERE id=999999999;'
+root_sql 'REVOKE DENY UPDATE, DELETE ON auth_project.login_audit FROM role_auditor;'
+allow 'REVOKE DENY exposes existing UPDATE grant' auditor "START TRANSACTION; UPDATE login_audit SET reason='temporary' WHERE id=999999999; ROLLBACK;"
+allow 'REVOKE DENY exposes existing DELETE grant' auditor 'START TRANSACTION; DELETE FROM login_audit WHERE id=999999999; ROLLBACK;'
+root_sql 'DENY UPDATE, DELETE ON auth_project.login_audit TO role_auditor;'
+root_sql 'REVOKE UPDATE, DELETE ON auth_project.login_audit FROM role_auditor;'
+deny 'restored audit protection' 1142 auditor "UPDATE login_audit SET reason='blocked' WHERE id=999999999;"
+deny 'registrar direct account creation' 1227 sql project_registrar local-test-registration-password "CREATE USER 'signup_forbidden'@'%';"
+deny 'registrar data access' 1142 sql project_registrar local-test-registration-password 'SELECT * FROM user_directory;'
+deny 'registrar invalid username' 30001 sql project_registrar local-test-registration-password "CALL register_account('project_admin', 'valid-long-password');"
+deny 'registrar weak password' 30001 sql project_registrar local-test-registration-password "CALL register_account('signup_short', 'short');"
+deny 'reader provisioning' 1370 reader "CALL register_account('signup_forbidden', 'valid-long-password');"
 "${COMPOSE[@]}" exec -T api node --input-type=module < scripts/test-api.mjs
 echo 'All database and API RBAC tests passed.'

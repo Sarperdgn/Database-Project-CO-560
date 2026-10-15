@@ -1,6 +1,6 @@
 services:
   db:
-    image: mariadb:11.8.9
+    image: quay.io/mariadb-foundation/mariadb-devel:13.1
     restart: unless-stopped
     environment:
       MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?Required}
@@ -9,11 +9,12 @@ services:
       EMPLOYEE_DB_PASSWORD: ${EMPLOYEE_DB_PASSWORD:?Required}
       READONLY_DB_PASSWORD: ${READONLY_DB_PASSWORD:?Required}
       AUDITOR_DB_PASSWORD: ${AUDITOR_DB_PASSWORD:?Required}
+      REGISTRATION_DB_PASSWORD: ${REGISTRATION_DB_PASSWORD:?Required}
       MARIADB_ROOT_HOST: localhost
     ports:
       - "127.0.0.1:${DB_PUBLISHED_PORT:-3307}:3306"
     volumes:
-      - mariadb_data:/var/lib/mysql
+      - mariadb_13_1_data:/var/lib/mysql
       - ./database/init:/docker-entrypoint-initdb.d:ro
       - ./database/security:/opt/project-security:ro
     healthcheck:
@@ -30,10 +31,11 @@ services:
       DB_HOST: db
       DB_PORT: 3306
       DB_NAME: ${MARIADB_DATABASE:?Required}
+      REGISTRATION_DB_PASSWORD: ${REGISTRATION_DB_PASSWORD:?Required}
     ports:
       - "127.0.0.1:${API_PUBLISHED_PORT:-3000}:3000"
     depends_on:
       db:
         condition: service_healthy
 volumes:
-  mariadb_data:
+  mariadb_13_1_data:

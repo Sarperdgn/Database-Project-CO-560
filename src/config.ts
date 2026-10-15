@@ -10,6 +10,7 @@ function port(name: string, fallback: number): number {
   return value;
 }
 export const config = {
+  registrationPassword: required("REGISTRATION_DB_PASSWORD"),
   port: port("PORT", 3000),
   db: { host: required("DB_HOST"), port: port("DB_PORT", 3306), name: required("DB_NAME") },
 };
