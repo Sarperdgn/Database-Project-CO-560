@@ -92,8 +92,6 @@ The script confirms the **MariaDB error numbers**, not just unsuccessful command
 
 To demonstrate live, run `bash scripts/test-security-audit-local.sh` on screen and show the distinct PASS lines for **actual access-control errors** and **actual audit-log events**. Screenshots/video are optional; for a reproducible submission the code and this README are authoritative. Do **not** commit `.env`, passwords, raw audit logs or unredacted SQL statements with secrets.
 
-To integrate with the main README, add a short link to **[`Vedant_README.md`](Vedant_README.md)** and a pointer to `bash scripts/test-security-audit-local.sh`; do not replace the team's existing root README or RBAC suite. Check that it describes the repository's current MariaDB version (the Docker image is `13.1`).
-
 ## References
 
 - [MariaDB Audit Plugin Installation](https://mariadb.com/docs/server/reference/plugins/mariadb-audit-plugin/mariadb-audit-plugin-installation)
