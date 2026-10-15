@@ -1,0 +1,16 @@
+# MariaDB Server Audit plugin — opt-in local demonstration only.
+# Loaded by docker-compose.audit.yml. Keep the file in Git; never commit audit logs.
+[mariadb]
+plugin_load_add=server_audit
+# Fail startup rather than silently running with auditing disabled.
+server_audit=FORCE_PLUS_PERMANENT
+server_audit_logging=ON
+server_audit_output_type=FILE
+# Stored in the database container's volume and read via `docker compose exec db`.
+server_audit_file_path=/var/lib/mysql/vedant-server-audit.log
+server_audit_file_rotate_size=10000000
+server_audit_file_rotations=3
+server_audit_events=CONNECT,QUERY
+# CONNECT is always logged for all users. Only these users' SQL text is logged,
+# avoiding recording root provisioning SQL with embedded demo passwords.
+server_audit_incl_users=project_admin,project_employee,project_reader,project_auditor

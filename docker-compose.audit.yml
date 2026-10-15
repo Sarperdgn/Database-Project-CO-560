@@ -1,0 +1,7 @@
+# Opt-in audit logging for the teaching/demo stack.
+# Run with: docker compose -f docker-compose.yml -f docker-compose.audit.yml ...
+# Does not change the application's standard Compose configuration.
+services:
+  db:
+    volumes:
+      - ./database/audit/99-server-audit.cnf:/etc/mysql/conf.d/99-server-audit.cnf:ro
