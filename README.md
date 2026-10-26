@@ -320,7 +320,7 @@ This is a Constructor University **CO-560 Database Core** student project. The p
 
 | Contributor | Documented area |
 | --- | --- |
-| **Sarp** | MariaDB-backed authentication, Express API integration, account creation, and password lifecycle |
+| **Sarp** | MariaDB-backed authentication, API integration, account creation, and password lifecycle |
 | **Batuhan** | MariaDB roles, permission assignments, and role-based access control |
 | **Omer** | MariaDB roles, configs, permissions and tests | 
 | **Vedant** | Server Audit configuration, negative/attack tests, and evidence validation |
