@@ -1,0 +1,75 @@
+name: MariaDB 13.1 - Unix Socket Authentication
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mariadb-socket-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unix-socket:
+    name: Passwordless OS identity and rejected unauthorized logins
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Check out project
+        uses: actions/checkout@v4
+
+      - name: Set up Python for the installer
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check Docker and Compose
+        run: |
+          docker --version
+          docker compose version
+
+      # The repo currently provides this *installer script*, not the generated
+      # database/Dockerfile and database/init/03-unix-socket.sql.
+      # Applying it here tests the documented optional feature on a fresh runner,
+      # without modifying the source branch or any developer's persistent volume.
+      - name: Apply repository Unix-socket implementation script
+        run: |
+          bash apply-unix-socket-auth.sh
+          test -f database/Dockerfile
+          test -f database/init/03-unix-socket.sql
+          test -f scripts/test-unix-socket-local.sh
+
+      - name: Test socket login, role limitations, OS mismatch and TCP rejection
+        run: |
+          mkdir -p .ci-results
+          bash scripts/test-unix-socket-local.sh 2>&1 | tee .ci-results/mariadb-socket.log
+
+      - name: Add socket-authentication evidence to run summary
+        if: success()
+        run: |
+          {
+            echo '## MariaDB Unix-socket authentication verification'
+            echo 'The repository installer was applied to the ephemeral CI checkout.'
+            echo 'The resulting containerized implementation passed the local tests.'
+            echo ''
+            echo '```text'
+            grep -E '^(PASS|All Unix-socket)' .ci-results/mariadb-socket.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Attach socket-authentication test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mariadb-unix-socket-output
+          path: .ci-results/mariadb-socket.log
+          if-no-files-found: ignore
+          retention-days: 7

@@ -1,0 +1,69 @@
+name: MariaDB 13.1 - RBAC and DENY
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mariadb-rbac-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mariadb-rbac:
+    name: SQL roles, DENY, and API authorization
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Check out project
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Check Docker and Compose
+        run: |
+          docker --version
+          docker compose version
+
+      - name: Install dependencies and compile API
+        run: |
+          npm ci
+          npm run build
+
+      - name: Test real MariaDB accounts, roles, GRANT and DENY
+        run: |
+          mkdir -p .ci-results
+          bash scripts/test-rbac-local.sh 2>&1 | tee .ci-results/mariadb-rbac.log
+
+      - name: Add database authorization evidence to run summary
+        if: success()
+        run: |
+          {
+            echo '## MariaDB 13.1 authorization verification'
+            echo 'The disposable database and API passed the repository RBAC integration suite.'
+            echo ''
+            echo '```text'
+            grep -E '^(MariaDB version:|PASS |All database)' .ci-results/mariadb-rbac.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Attach test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mariadb-rbac-test-output
+          path: .ci-results/mariadb-rbac.log
+          if-no-files-found: ignore
+          retention-days: 7
