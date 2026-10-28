@@ -18,6 +18,7 @@ jobs:
     name: Passwordless OS identity and rejected unauthorized logins
     runs-on: ubuntu-24.04
     timeout-minutes: 35
+
     defaults:
       run:
         shell: bash
@@ -26,46 +27,73 @@ jobs:
       - name: Check out project
         uses: actions/checkout@v4
 
-      - name: Set up Python for the installer
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
       - name: Check Docker and Compose
         run: |
           docker --version
           docker compose version
 
-      # The repo currently provides this *installer script*, not the generated
-      # database/Dockerfile and database/init/03-unix-socket.sql.
-      # Applying it here tests the documented optional feature on a fresh runner,
-      # without modifying the source branch or any developer's persistent volume.
-      - name: Apply repository Unix-socket implementation script
+      - name: Generate the project's Unix-socket implementation
         run: |
           bash apply-unix-socket-auth.sh
           test -f database/Dockerfile
           test -f database/init/03-unix-socket.sql
           test -f scripts/test-unix-socket-local.sh
 
-      - name: Test socket login, role limitations, OS mismatch and TCP rejection
+      - name: Configure explicit MariaDB Unix-socket authentication
         run: |
+          # MariaDB 11.6+ supports explicit mapping to the Linux OS identity.
+          sed -i "s/IDENTIFIED VIA unix_socket;/IDENTIFIED VIA unix_socket AS 'project_socket';/" database/init/03-unix-socket.sql
+          grep -Fq "IDENTIFIED VIA unix_socket AS 'project_socket';" database/init/03-unix-socket.sql
+
+          # Fail startup if the server cannot initialize the Unix-socket plugin.
+          cat >> database/Dockerfile <<'DOCKERFILE'
+          RUN mkdir -p /etc/mysql/conf.d && \
+              printf '%s\n' '[mariadb]' 'unix_socket=FORCE' > /etc/mysql/conf.d/99-unix-socket.cnf
+          DOCKERFILE
+
+      - name: Wait for account provisioning, not just database startup
+        run: |
+          # The repository's test script uses Compose automatically; COMPOSE_FILE
+          # adds this CI-only healthcheck to its temporary Docker stack.
+          cat > docker-compose.socket-ci.yml <<'COMPOSE'
+          services:
+            db:
+              healthcheck:
+                test:
+                  - CMD-SHELL
+                  - >-
+                    MYSQL_PWD="$${MARIADB_ROOT_PASSWORD}" mariadb
+                    --protocol=socket -uroot -Nse
+                    "SELECT COUNT(*) FROM mysql.user WHERE User='project_socket' AND Host='localhost';"
+                    | grep -qx 1
+                interval: 2s
+                timeout: 5s
+                retries: 90
+                start_period: 10s
+          COMPOSE
+
+      - name: Test passwordless login and rejected access
+        env:
+          COMPOSE_FILE: docker-compose.yml:docker-compose.socket-ci.yml
+        run: |
+          set -o pipefail
           mkdir -p .ci-results
           bash scripts/test-unix-socket-local.sh 2>&1 | tee .ci-results/mariadb-socket.log
 
-      - name: Add socket-authentication evidence to run summary
+      - name: Show test evidence in the run summary
         if: success()
         run: |
           {
-            echo '## MariaDB Unix-socket authentication verification'
-            echo 'The repository installer was applied to the ephemeral CI checkout.'
-            echo 'The resulting containerized implementation passed the local tests.'
+            echo '## MariaDB Unix-socket authentication'
+            echo 'The container initialized its socket user, and the existing'
+            echo 'integration tests verified permitted and denied operations.'
             echo ''
             echo '```text'
             grep -E '^(PASS|All Unix-socket)' .ci-results/mariadb-socket.log || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Attach socket-authentication test results
+      - name: Upload integration-test output
         if: always()
         uses: actions/upload-artifact@v4
         with:
