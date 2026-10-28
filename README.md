@@ -2,6 +2,12 @@ A project for area 5, "Authentication and access control" for the [MariaDB stude
 
 # MariaDB Authentication and Access Control
 
+[![CI](https://github.com/Sarperdgn/Database-Project-CO-560/actions/workflows/mariadb-rbac.yml/badge.svg?branch=main)](https://github.com/Sarperdgn/Database-Project-CO-560/actions/workflows/mariadb-rbac.yml)
+
+[![Security Audit](https://github.com/Sarperdgn/Database-Project-CO-560/actions/workflows/mariadb-server-audit.yml/badge.svg?branch=main)](https://github.com/Sarperdgn/Database-Project-CO-560/actions/workflows/mariadb-server-audit.yml)
+
+[![Unix Socket Auth](https://github.com/Sarperdgn/Database-Project-CO-560/actions/workflows/mariadb-unix-socket.yml/badge.svg?branch=main)](https://github.com/Sarperdgn/Database-Project-CO-560/actions/workflows/mariadb-unix-socket.yml)
+
 A reproducible, database-first tutorial demonstrating how **MariaDB accounts, roles, column-level privileges, and MariaDB 13.1 `DENY` (negative grants)** control access to application data. An optional Express API exposes the same controls over HTTP; the database, not application-side role checks, makes the authorization decisions.
 
 **Project area:** 5 — Authentication and access control  
