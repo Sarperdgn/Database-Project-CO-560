@@ -1,0 +1,64 @@
+name: MariaDB 13.1 - Audit Evidence
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mariadb-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server-audit:
+    name: Failed logins, privilege denials, and audit trail
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Check out project
+        uses: actions/checkout@v4
+
+      - name: Set up Python for audit-log verification
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check Docker and Compose
+        run: |
+          docker --version
+          docker compose version
+
+      - name: Verify actual Server Audit events and MariaDB error codes
+        run: |
+          mkdir -p .ci-results
+          bash scripts/test-security-audit-local.sh 2>&1 | tee .ci-results/mariadb-audit.log
+
+      - name: Add audit evidence to run summary
+        if: success()
+        run: |
+          {
+            echo '## MariaDB 13.1 Server Audit evidence'
+            echo 'Verified real events for login success/failure, locked users,'
+            echo 'forbidden SQL, role escalation, privilege revocation, and DENY precedence.'
+            echo ''
+            echo '```text'
+            grep -E '^(PASS |MariaDB version:)' .ci-results/mariadb-audit.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Attach audit test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mariadb-server-audit-output
+          path: .ci-results/mariadb-audit.log
+          if-no-files-found: ignore
+          retention-days: 7
