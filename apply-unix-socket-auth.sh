@@ -20,9 +20,11 @@ from pathlib import Path
 p = Path('docker-compose.yml')
 s = p.read_text()
 needle = '  db:\n    image: quay.io/mariadb-foundation/mariadb-devel:13.1\n'
-assert s.count(needle) == 1, 'Unexpected Compose db image declaration; review manually.'
-s = s.replace(needle, '  db:\n    build:\n      context: .\n      dockerfile: database/Dockerfile\n', 1)
-p.write_text(s)
+replacement = '  db:\n    build:\n      context: .\n      dockerfile: database/Dockerfile\n'
+if needle in s:
+    s = s.replace(needle, replacement, 1)
+    p.write_text(s)
+assert replacement in s, 'Unexpected Compose db image declaration; review manually.'
 PY
 cat > scripts/test-unix-socket-local.sh <<'EOF'
 #!/usr/bin/env bash
@@ -90,12 +92,12 @@ reject 'socket account cannot read audit data' '1142|1143' socket_query \
 reject 'socket account cannot elevate role' 1959 socket_query \
   'SET ROLE role_admin;'
 
-reject 'mismatched OS identity' 1045 \
+reject 'mismatched OS identity' '1045|1698' \
   "${COMPOSE[@]}" exec -T -u nobody db \
     mariadb --no-defaults --protocol=socket --user=project_socket \
     --skip-password auth_project -e 'SELECT 1;'
 
-reject 'TCP passwordless login' 1045 \
+reject 'TCP passwordless login' '1045|1698' \
   "${COMPOSE[@]}" exec -T -u project_socket db \
     mariadb --no-defaults --protocol=tcp --host=127.0.0.1 \
     --user=project_socket --skip-password auth_project -e 'SELECT 1;'
@@ -114,7 +116,7 @@ if p.exists():
     text = text.replace('| An alternative, passwordless authentication method |', '| Passwordless socket access from the remote HTTP API |')
     heading = '## 9. Repository map'
     section = "### Alternative MariaDB Unix socket authentication\n\nSee [UNIX_SOCKET_AUTH.md](UNIX_SOCKET_AUTH.md) and run `bash scripts/test-unix-socket-local.sh`. This demonstrates passwordless local OS authentication with read-only privileges; the remote API remains password-based.\n\n"
-    if heading in text and '### Alternative authentication: MariaDB Unix socket' not in text:
+    if heading in text and '### Alternative MariaDB Unix socket authentication' not in text and '### Alternative authentication: MariaDB Unix socket' not in text:
         text = text.replace(heading, section + heading, 1)
     p.write_text(text)
 PYREADME

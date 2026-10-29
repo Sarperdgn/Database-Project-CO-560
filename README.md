@@ -8,27 +8,29 @@ A project for area 5, "Authentication and access control" for the [MariaDB stude
 
 [![Unix Socket Auth](https://github.com/Sarperdgn/Database-Project-CO-560/actions/workflows/mariadb-unix-socket.yml/badge.svg?branch=main)](https://github.com/Sarperdgn/Database-Project-CO-560/actions/workflows/mariadb-unix-socket.yml)
 
-A reproducible, database-first tutorial demonstrating how **MariaDB accounts, roles, column-level privileges, and MariaDB 13.1 `DENY` (negative grants)** control access to application data. An optional Express API exposes the same controls over HTTP; the database, not application-side role checks, makes the authorization decisions.
+A reproducible, database-first tutorial demonstrating how **MariaDB accounts, roles, role inheritance, column-level privileges, and MariaDB 13.1 `DENY` (negative grants)** control access to application data. An optional Express API exposes the same controls over HTTP; the database, not application-side role checks, makes the authorization decisions.
 
 **Project area:** 5 — Authentication and access control  
 **Course:** CO-560 Database Core, Constructor University  
-**MariaDB target:** **13.1 preview/development image** (`quay.io/mariadb-foundation/mariadb-devel:13.1` in `docker-compose.yml`)  
+**MariaDB target:** **13.1 preview/development image** (`quay.io/mariadb-foundation/mariadb-devel:13.1` in `docker-compose.yml`, verified against `13.1.2-MariaDB-ubu2604`)  
 **Repository:** [Sarperdgn/Database-Project-CO-560](https://github.com/Sarperdgn/Database-Project-CO-560)
 
-> **Scope:** This is a local educational demonstration, not a production-ready authentication service. It implements MariaDB role enforcement and negative grants, but **does not yet implement a non-password MariaDB authentication method or verified TLS**. The optional HTTP interface uses unencrypted HTTP Basic authentication on loopback. See [Security limitations and assignment coverage](#security-limitations-and-assignment-coverage).
+> **Scope:** This is a local educational demonstration, not a production-ready authentication service. It implements MariaDB role enforcement, role inheritance, column/view isolation, negative grants (`DENY`), and **passwordless local OS peer authentication via MariaDB's `unix_socket` plugin (`project_socket@localhost`, `apply-unix-socket-auth.sh`)**, and verifies all controls against live MariaDB `13.1.2-MariaDB-ubu2604` across four automated test suites (with committed runtime logs under [`evidence/test-runs/`](evidence/test-runs/)) and the MariaDB Server Audit plugin. It **does not yet implement verified TLS** for TCP client connections, and the optional HTTP interface uses unencrypted HTTP Basic authentication on loopback. See [Security limitations and assignment coverage](#security-limitations-and-assignment-coverage).
+
+---
 
 ## 1. What this project demonstrates
 
 A security model is more convincing when a disallowed SQL statement still fails **after the API is bypassed**. This project gives each kind of user a separate MariaDB account, assigns an appropriate default role, and places grants and denials in SQL scripts. Readers can connect directly to MariaDB to test the exact same rules that the HTTP API encounters.
 
-- **Native authentication:** MariaDB validates the credentials of each account that opens a protected connection.
-- **Role-based access control (RBAC):** `role_admin`, `role_employee`, `role_readonly`, and `role_auditor` receive different rights.
-- **Least privilege:** A public-column view and column-scoped grants avoid exposing `password_hash` or allowing unrestricted updates.
-- **Explicit negative privileges:** MariaDB **13.1 `DENY`** prevents the auditor from changing audit data, even after someone adds a conflicting positive grant.
-- **Account lifecycle:** A restricted SQL procedure creates new `signup_*` MariaDB accounts with the read-only role; an invoker-security procedure changes the caller's own password.
-- **Repeatable negative tests:** Dedicated scripts test successful and rejected actions using actual MariaDB error codes. An opt-in Server Audit configuration can record connection attempts and queries.
+- **Native & alternative passwordless authentication:** MariaDB validates the credentials of each account that opens a protected connection (`connectAs` per request), and [`apply-unix-socket-auth.sh`](apply-unix-socket-auth.sh) / [`database/init/03-unix-socket.sql`](database/init/03-unix-socket.sql) provisions `project_socket@localhost IDENTIFIED VIA unix_socket` for passwordless local OS peer authentication ([`UNIX_SOCKET_AUTH.md`](UNIX_SOCKET_AUTH.md)).
+- **Role-based access control (RBAC) & role inheritance:** `role_admin`, `role_employee`, `role_readonly`, `role_auditor`, and `role_registration` isolate privileges by responsibility, and composite roles (`GRANT role_a TO role_b`) demonstrate multi-role privilege inheritance.
+- **Fine-grained least privilege:** A `SQL SECURITY DEFINER` public-column view (`user_directory`) and column-scoped grants (`SELECT (id)`, `UPDATE (username)` on `app_users`) avoid exposing `password_hash` or allowing unrestricted updates, with MariaDB distinguishing object-level (`ERROR 1142`), column-level (`ERROR 1143`), invoker-view (`ERROR 1356`), and routine-level (`ERROR 1370`) denials.
+- **Explicit negative privileges & conflict resolution:** MariaDB **13.1 `DENY`** (stored in `mysql.global_priv` under `$.denies`) overrides conflicting positive `GRANT` statements across the same role, across inherited roles, between direct user grants and active role grants, and downward across schema $\rightarrow$ table $\rightarrow$ column and routine levels.
+- **Account lifecycle:** A restricted `SQL SECURITY DEFINER` procedure (`register_account`) creates new `signup_*` MariaDB accounts with the read-only role; an `SQL SECURITY INVOKER` procedure (`change_own_password`) changes only the caller's own password.
+- **Repeatable negative tests, Server Audit verification & committed runtime logs:** Four isolated Docker Compose test suites verify allowed and rejected operations using exact MariaDB error codes (`1045`, `1698`, `1142`, `1143`, `1227`, `1356`, `1370`, `1959`, `4151`, `30001`), validate real connection and query logs generated by the MariaDB Server Audit plugin (`server_audit`), and store full runtime output logs in [`evidence/test-runs/`](evidence/test-runs/).
 
-### Architecture
+### System and privilege architecture
 
 ```text
                     +---------------------------+
@@ -44,7 +46,8 @@ A security model is more convincing when a disallowed SQL statement still fails 
          | validation, SQL |                       |
          | error mapping   |                       |
          +-------+---------+                       |
-                 | connection as calling user     |
+                 | connection as calling user      |
+                 | (destroyed after each request)  |
                  +----------------+----------------+
                                   |
                          +--------v---------+
@@ -52,14 +55,17 @@ A security model is more convincing when a disallowed SQL statement still fails 
                          | accounts + roles |
                          | GRANT + DENY     |
                          | views + routines |
+                         | server_audit     |
                          +------------------+
 ```
 
-Protected API requests each open a fresh database connection using the caller's HTTP Basic username/password and destroy that connection afterward. The API does not maintain a JWT permission map, switch to an elevated role for protected requests, or use one privileged connection for all users. **Registration is a deliberate exception:** the public registration endpoint uses a separate, narrowly scoped `project_registrar` account, whose credential is supplied through configuration and whose role can execute only the provisioning procedure.
+Protected API requests ([`src/db.ts`](src/db.ts), [`src/app.ts`](src/app.ts)) each open a fresh database connection using the caller's HTTP Basic username/password and destroy that connection afterward (`db.destroy()`). The API does not maintain a JWT permission map, switch to an elevated role for protected requests, or use one privileged connection pool for all users. **Registration is a deliberate exception:** the public registration endpoint (`POST /api/auth/register`) uses a separate, narrowly scoped `project_registrar` account (`role_registration`), whose credential is supplied through configuration and whose role can execute only the `register_account` provisioning procedure.
+
+---
 
 ## 2. Requirements and quick start
 
-You need **Docker Engine**, **Docker Compose v2**, and an internet connection to pull the MariaDB 13.1 development image and build the Node.js container. To run the repository's RBAC tests, you also need **Node.js 22** and npm. The separate audit-verification test requires **Python 3** and Bash.
+You need **Docker Engine**, **Docker Compose v2**, and an internet connection to pull `quay.io/mariadb-foundation/mariadb-devel:13.1` and build the Node.js container. To run the repository's RBAC + API test suite, you also need **Node.js 22+** and npm. The fine-grained and audit-verification test suites require **Bash** and **Python 3**.
 
 ```bash
 git clone https://github.com/Sarperdgn/Database-Project-CO-560.git
@@ -81,7 +87,7 @@ docker compose -p co560-demo exec db mariadb -uroot -p -e 'SELECT VERSION();'
 curl http://127.0.0.1:3000/health
 ```
 
-Enter the `MARIADB_ROOT_PASSWORD` from `.env` when prompted. The health endpoint should return `{"status":"ok"}`. The default published ports are **127.0.0.1:3000** for the HTTP API and **127.0.0.1:3307** for MariaDB. If those ports are already in use, add `API_PUBLISHED_PORT` and `DB_PUBLISHED_PORT` with unused values to `.env`.
+Enter the `MARIADB_ROOT_PASSWORD` from `.env` when prompted. The health endpoint returns `{"status":"ok"}`. The default published ports are **127.0.0.1:3000** for the HTTP API and **127.0.0.1:3307** for MariaDB. If those ports are already in use, add `API_PUBLISHED_PORT` and `DB_PUBLISHED_PORT` with unused values to `.env`.
 
 **Important:** The Docker database initialization scripts run **only when the database volume is first created**. The `co560-demo` project name keeps this tutorial separate from other Compose projects. Rebuilding the API does not re-apply SQL changes to an existing database volume. To remove this demonstration's database and data **permanently** when finished:
 
@@ -91,54 +97,84 @@ docker compose -p co560-demo down -v
 
 Do not run `down -v` against a project whose data you want to keep.
 
+---
+
 ## 3. Data model and design decisions
 
 The SQL in [`database/init/01-schema.sql`](database/init/01-schema.sql) creates two InnoDB tables, one protected view, and one illustrative directory record:
 
 | Object | Key fields | Purpose and design rationale |
 | --- | --- | --- |
-| `app_users` | `id`, `email`, `username`, `password_hash`, status/lockout fields, timestamps | Protected demonstration data. Unique email/username constraints model a small user directory. **Rows are not MariaDB login accounts.** The hash and lockout fields are illustrative and are not used by the current authentication flow. |
-| `login_audit` | `id`, optional `user_id`, `attempted_email`, `success`, `reason`, `ip_address`, `created_at` | Illustrates sensitive event data and an auditor-only read use case. The foreign key to `app_users` uses `ON DELETE SET NULL` to preserve the record when a directory row is removed. It is **not automatically populated with MariaDB login events**. |
-| `user_directory` | `id`, `email`, `username` | A `SQL SECURITY DEFINER` view that reveals only intended directory columns. Readers and employees can query the view without gaining direct access to password hashes. |
+| `app_users` | `id`, `email`, `username`, `password_hash`, `is_active`, `failed_login_attempts`, `locked_until`, `token_version`, `last_login_at`, `created_at`, `updated_at` | Protected demonstration data. Unique email/username constraints model a user directory alongside sensitive security state. **Rows are not MariaDB login accounts.** The hash and lockout fields are private base-table columns used to test fine-grained access control. |
+| `login_audit` | `id`, optional `user_id`, `attempted_email`, `success`, `reason`, `ip_address`, `created_at` | Illustrates sensitive audit data and an auditor-only read use case with immutability enforced by MariaDB 13.1 `DENY`. The foreign key to `app_users` uses `ON DELETE SET NULL` to preserve records when a directory row is removed. It is **not automatically populated with MariaDB login events** (real server events are logged by the `server_audit` plugin). |
+| `user_directory` | `id`, `email`, `username` | A `SQL SECURITY DEFINER` view that projects only public directory columns. Readers and employees query the view without gaining table-level `SELECT` access to `app_users`. |
 
-The initial directory row (`student@example.invalid`) is inserted by the schema script. MariaDB identities such as `project_reader` are created separately by SQL account-management statements; these are not linked to `app_users.id`.
+### Architectural reasoning: why a `SQL SECURITY DEFINER` view plus column grants?
+
+1. **Complete base-table isolation for readers (`ERROR 1142` vs `ERROR 1356`):** `role_readonly` is granted `SELECT` on `user_directory` and zero privileges on `app_users`. Because `user_directory` is defined with `SQL SECURITY DEFINER`, MariaDB evaluates underlying `app_users` access against the view definer (`root@localhost`) while checking the caller's privileges strictly against the view. Any direct query on `app_users` fails at the table level with **`ERROR 1142 (42000)`**. By contrast, if a view is created with `SQL SECURITY INVOKER`, MariaDB evaluates base-table privileges against the calling user and rejects `project_reader` with **`ERROR 1356 (HY000)`**.
+2. **Cleaner query surface than column-only `SELECT` grants:** While MariaDB supports `GRANT SELECT (id, email, username) ON app_users`, callers holding only column-level `SELECT` grants on a base table fail with `ERROR 1143` whenever they execute `SELECT *`. A `SQL SECURITY DEFINER` view gives read-only clients and `GET /api/users` a clean table-like abstraction where `SELECT * FROM user_directory` safely returns only `id, email, username`, while still supporting further column-level `DENY` narrowing when needed.
+3. **Minimal column-level write privilege for employees (`ERROR 1143`):** Employees must be able to rename users (`UPDATE app_users SET username = ? WHERE id = ?`) without reading `password_hash` or changing `is_active` / `locked_until`. Notice that in MariaDB, an `UPDATE ... WHERE id = ?` requires both `UPDATE (username)` and `SELECT (id)` on `app_users` (without `SELECT (id)`, evaluating `WHERE id = ?` fails with `ERROR 1143: SELECT command denied ... for column 'id'`). Granting only `SELECT (id)` and `UPDATE (username)` on `app_users` to `role_employee` enforces strict column-level isolation.
 
 ### Database initialization, in order
 
-1. `database/init/01-schema.sql` creates the sample tables, view, and seed row.
-2. `database/init/02-security.sh` renders the SQL templates with validated environment values and executes them during fresh-volume initialization.
-3. `database/security/01-accounts.sql.in` creates the four demonstration accounts.
-4. `database/security/02-roles.sql.in` defines roles, positive grants, default role assignments, and explicit `DENY` rules.
-5. `database/security/03-self-service.sql.in` creates the limited registrar and account/password procedures.
+1. [`database/init/01-schema.sql`](database/init/01-schema.sql) creates `app_users`, `login_audit`, the `user_directory` view, and the seed row (`student@example.invalid`).
+2. [`database/init/02-security.sh`](database/init/02-security.sh) validates environment variables, safely renders SQL templates under `SET SESSION sql_mode = 'NO_BACKSLASH_ESCAPES'`, and pipes them to `mariadb --protocol=socket -uroot` during fresh-volume initialization.
+3. [`database/security/01-accounts.sql.in`](database/security/01-accounts.sql.in) creates the four baseline accounts (`project_admin`, `project_employee`, `project_reader`, `project_auditor`).
+4. [`database/security/02-roles.sql.in`](database/security/02-roles.sql.in) defines roles, positive grants, default role assignments, and explicit MariaDB 13.1 `DENY` rules.
+5. [`database/security/03-self-service.sql.in`](database/security/03-self-service.sql.in) creates `project_registrar` (`role_registration`), `register_account` (`SQL SECURITY DEFINER`), and `change_own_password` (`SQL SECURITY INVOKER`).
 
-The loader handles template substitution; **SQL files define the security policy**. This separation makes the rules independently readable and testable.
+---
 
-## 4. MariaDB roles and permission matrix
+## 4. MariaDB roles, fine-grained privileges, and `DENY` internals
 
-| Account | Default role | Intended permitted operations | Examples of blocked operations |
+### Accounts and default roles
+
+| Account | Default role | Intended permitted operations | Examples of blocked operations (with MariaDB error codes) |
 | --- | --- | --- | --- |
-| `project_admin` | `role_admin` | Manage tables and records in the project database | No global account-management rights or `GRANT OPTION` supplied by this role |
-| `project_employee` | `role_employee` | Read `user_directory`, read `app_users.id`, update only `app_users.username` | Read `password_hash`, delete records, change the password-hash column |
-| `project_reader` | `role_readonly` | Read `user_directory` | Modify data, read the audit table or private base-table columns, activate the admin role |
-| `project_auditor` | `role_auditor` | Read `login_audit` | Modify or delete `login_audit`, access the public directory |
-| `project_registrar` | `role_registration` | Execute `register_account(...)` | Direct `CREATE USER`, direct directory queries, role assignment outside the procedure |
-| Newly registered `signup_*` | `role_readonly` | Read `user_directory`, change own password via granted procedure | Modify the directory or activate an unauthorized role |
+| `project_admin` | `role_admin` | All privileges on `auth_project.*` | Global `CREATE USER` (`1227`), access to `mysql.*` (`1142`), `GRANT OPTION` |
+| `project_employee` | `role_employee` | `SELECT` on `user_directory`; `SELECT (id)` and `UPDATE (username)` on `app_users`; `CALL change_own_password` | Read `password_hash` or `email` from `app_users` (`1143`), update `password_hash` or `is_active` (`1143`), `DELETE` from `app_users` (`1142`), read `login_audit` (`1142`) |
+| `project_reader` | `role_readonly` | `SELECT` on `user_directory`; `CALL change_own_password` | Any query on `app_users` or `login_audit` (`1142`), `UPDATE` on `user_directory` or `app_users` (`1142`), `SET ROLE role_admin` (`1959`), `CALL register_account` (`1370`) |
+| `project_auditor` | `role_auditor` | `SELECT` on `login_audit`; `CALL change_own_password` | `UPDATE` or `DELETE` on `login_audit` (`1142` via explicit `DENY`), `SELECT` on `user_directory` or `app_users` (`1142`) |
+| `project_registrar` | `role_registration` | `EXECUTE` on `PROCEDURE register_account` | Direct `CREATE USER` (`1227`), `SELECT` on `user_directory` (`1142`), invalid username or short password (`30001`) |
+| Newly registered `signup_*` | `role_readonly` | `SELECT` on `user_directory`; `CALL change_own_password` | Modify directory data (`1142`), escalate roles (`1959`) |
 
-The essential SQL is in [`database/security/02-roles.sql.in`](database/security/02-roles.sql.in):
+### Privilege comparison matrix across objects and columns
+
+| Resource / Operation | `project_admin` (`role_admin`) | `project_employee` (`role_employee`) | `project_reader` (`role_readonly`) | `project_auditor` (`role_auditor`) |
+| --- | :---: | :---: | :---: | :---: |
+| `SELECT id, email, username FROM user_directory` | Allowed | Allowed | Allowed | Denied (`1142`) |
+| `SELECT id FROM app_users` (base table) | Allowed | Allowed (column grant) | Denied (`1142`) | Denied (`1142`) |
+| `SELECT email FROM app_users` (base table) | Allowed | Denied (`1143`) | Denied (`1142`) | Denied (`1142`) |
+| `SELECT password_hash FROM app_users` | Allowed | Denied (`1143`) | Denied (`1142`) | Denied (`1142`) |
+| `SELECT token_version, locked_until FROM app_users` | Allowed | Denied (`1143`) | Denied (`1142`) | Denied (`1142`) |
+| `UPDATE app_users SET username = ... WHERE id = 1` | Allowed | Allowed (column grant) | Denied (`1142`) | Denied (`1142`) |
+| `UPDATE app_users SET password_hash = ...` | Allowed | Denied (`1143`) | Denied (`1142`) | Denied (`1142`) |
+| `UPDATE app_users SET is_active = ...` | Allowed | Denied (`1143`) | Denied (`1142`) | Denied (`1142`) |
+| `DELETE FROM app_users` | Allowed | Denied (`1142`) | Denied (`1142`) | Denied (`1142`) |
+| `SELECT * FROM login_audit` | Allowed | Denied (`1142`) | Denied (`1142`) | Allowed |
+| `UPDATE / DELETE ON login_audit` | Allowed | Denied (`1142`) | Denied (`1142`) | Denied (`1142`, explicit `DENY`) |
+
+### How MariaDB 13.1 `DENY` differs from `REVOKE`
+
+In MariaDB 13.1 ([MDEV-14443](https://jira.mariadb.org/browse/MDEV-14443)), `DENY` and `REVOKE DENY` manage explicit negative grants. Unlike positive grants stored in `mysql.db`, `mysql.tables_priv`, or `mysql.columns_priv`, MariaDB stores negative grants inside the `Priv` JSON document of `mysql.global_priv` under the `$.denies` key:
 
 ```sql
-CREATE ROLE role_readonly;
-GRANT SELECT ON auth_project.user_directory TO role_readonly;
-GRANT role_readonly TO 'project_reader'@'%';
-SET DEFAULT ROLE role_readonly FOR 'project_reader'@'%';
-
--- MariaDB 13.1: a negative grant overrides a conflicting positive grant.
-DENY UPDATE, DELETE ON auth_project.login_audit TO role_auditor;
+SELECT User, Host, JSON_PRETTY(JSON_EXTRACT(Priv, '$.denies')) AS denies
+  FROM mysql.global_priv
+  WHERE User = 'role_auditor';
 ```
 
-The example uses the default database name, `auth_project`; the real initialization script substitutes `MARIADB_DATABASE`. `DENY` is a **MariaDB 13.1 feature** and is not available in MariaDB 11.8 or other older releases. `REVOKE` removes an existing grant; `REVOKE DENY` removes a negative grant. The two mechanisms are not interchangeable.
+| Characteristic | `REVOKE` | `DENY` (MariaDB 13.1) |
+| --- | --- | --- |
+| **Mechanism** | Removes an existing positive `GRANT` at that exact level | Records a persistent negative entry in `mysql.global_priv` (`$.denies`) |
+| **Later `GRANT` statement** | Restores access immediately | **Still refused** — `DENY` always beats `GRANT` regardless of statement order |
+| **Role inheritance conflicts** | Inheriting another role with `GRANT` grants the privilege | A `DENY` inherited from any active role overrides positive `GRANT`s from all other active roles and direct user grants |
+| **Hierarchy propagation** | Revoking at table level fails or leaves broader global/schema grants active | Propagates downward: Global $\rightarrow$ Database $\rightarrow$ Table $\rightarrow$ Column, plus `PROCEDURE`/`FUNCTION` |
+| **How to remove** | Issue `GRANT` | Issue `REVOKE DENY` |
 
-## 5. Hands-on SQL tutorial: allow, block, and revoke
+---
+
+## 5. Hands-on SQL tutorial: allow, block, role inheritance, and conflicting permissions
 
 Connect directly to the database as the read-only account (enter its password from `.env`):
 
@@ -147,85 +183,99 @@ docker compose -p co560-demo exec db \
   mariadb --protocol=tcp -h127.0.0.1 -u project_reader -p auth_project
 ```
 
-Run the following statements **one at a time**. Errors on the negative cases are intentional:
+Run the following statements **one at a time**:
 
 ```sql
-SELECT CURRENT_USER(), CURRENT_ROLE();  -- project_reader@%, role_readonly
-SELECT * FROM user_directory;            -- allowed
-SELECT password_hash FROM app_users;    -- denied: no base-table privilege
-UPDATE app_users SET username = 'x' WHERE id = 1; -- denied
-SET ROLE role_admin;                     -- denied: role not assigned
-SHOW GRANTS;                             -- inspect the account's grants
+SELECT CURRENT_USER(), CURRENT_ROLE();            -- project_reader@%, role_readonly
+SELECT * FROM user_directory;                     -- allowed
+SELECT password_hash FROM app_users;              -- ERROR 1142 (table SELECT denied)
+UPDATE app_users SET username = 'x' WHERE id = 1; -- ERROR 1142 (table UPDATE denied)
+SET ROLE role_admin;                              -- ERROR 1959 (role not granted)
+SHOW GRANTS;                                      -- inspect the account's grants
 ```
 
-Now reconnect as `project_employee`. A username update is permitted, but reading the password-hash column is not:
+Now reconnect as `project_employee`. Updating `username` is permitted via column-level grant, while reading or modifying any other column on `app_users` fails with **`ERROR 1143`**:
 
 ```sql
 START TRANSACTION;
 UPDATE app_users SET username = 'updated_by_employee' WHERE id = 1;
 ROLLBACK;  -- leave the sample data unchanged
-SELECT password_hash FROM app_users; -- intentionally denied
+SELECT password_hash FROM app_users WHERE id = 1;               -- ERROR 1143 (column SELECT denied)
+UPDATE app_users SET password_hash = 'x' WHERE id = 1;          -- ERROR 1143 (column UPDATE denied)
 ```
 
-### Demonstrate that `DENY` beats `GRANT`
+### Advanced scenarios: role inheritance and conflicting permissions
 
-As the database administrator, execute the following *in the demonstration database*:
+The SQL scripts [`database/examples/deny.sql`](database/examples/deny.sql) and [`database/examples/fine-grained-security.sql`](database/examples/fine-grained-security.sql) (and the automated harness [`scripts/test-fine-grained-security-local.sh`](scripts/test-fine-grained-security-local.sh)) demonstrate five complex `GRANT` / `DENY` conflict and inheritance scenarios in MariaDB 13.1:
 
-```sql
-GRANT UPDATE ON auth_project.login_audit TO role_auditor;
-SHOW GRANTS FOR role_auditor;
+```text
+   Role Inheritance & Conflict Resolution in MariaDB 13.1
+   ======================================================
+
+   [role_auditor]                       [role_audit_editor]
+    - GRANT SELECT ON login_audit        - GRANT SELECT (id) ON login_audit
+    - DENY UPDATE, DELETE ON login_audit - GRANT UPDATE, DELETE ON login_audit
+                  \                    /
+                   v                  v
+                 [role_compliance_lead]
+                  - SELECT * FROM login_audit       --> ALLOWED
+                  - UPDATE / DELETE ON login_audit  --> DENIED (ERROR 1142: inherited DENY wins)
 ```
 
-Despite the added positive grant, a new `project_auditor` session still cannot execute:
+1. **Multi-role inheritance (`role_readonly` + `role_employee` $\rightarrow$ `role_support_lead`):**
+   Granting both `role_readonly` and `role_employee` to a composite role `role_support_lead` (`GRANT role_readonly TO role_support_lead; GRANT role_employee TO role_support_lead;`) and activating `SET ROLE role_support_lead` combines both roles' positive grants (`SELECT` on `user_directory` plus `SELECT (id), UPDATE (username)` on `app_users`), while still blocking `password_hash` with `ERROR 1143`.
+2. **Conflicting permissions across inherited roles (`role_auditor` vs `role_audit_editor`):**
+   When `role_compliance_lead` inherits both `role_auditor` (which carries `DENY UPDATE, DELETE ON login_audit`) and `role_audit_editor` (which carries `GRANT SELECT (id), UPDATE, DELETE ON login_audit`), MariaDB 13.1 resolves the conflict across the role graph in favor of `DENY`: `UPDATE` and `DELETE` fail with **`ERROR 1142`**. Only after detaching the denying role (`REVOKE role_auditor FROM role_compliance_lead`) does the inherited `GRANT UPDATE` from `role_audit_editor` succeed.
+3. **Conflicting permissions between direct user grants and active role grants:**
+   - Granting `GRANT UPDATE ON auth_project.login_audit TO 'project_auditor'@'%'` directly to the user account is still blocked (`ERROR 1142`) while its active role `role_auditor` holds `DENY UPDATE ON auth_project.login_audit`.
+   - Conversely, applying `DENY UPDATE (username) ON auth_project.app_users TO 'project_employee'@'%'` directly to the user account overrides the `GRANT UPDATE (username)` inherited from its active `role_employee` role (`ERROR 1143`).
+4. **Schema-wide `GRANT` vs table-level `DENY` (*"everything in this schema except that table"*):**
+   ```sql
+   GRANT SELECT ON auth_project.* TO role_readonly;
+   DENY SELECT ON auth_project.app_users TO role_readonly;
+   DENY SELECT ON auth_project.login_audit TO role_readonly;
+   ```
+   Under this policy, `project_reader` can read `user_directory` through the database-level `SELECT` grant, while queries against `app_users` and `login_audit` are blocked with **`ERROR 1142`**.
+5. **Downward propagation & column/routine carve-outs:**
+   - A table-level `DENY UPDATE ON auth_project.app_users TO role_employee` propagates downward and masks the column-level `GRANT UPDATE (username)`.
+   - A column-level `DENY SELECT (email) ON auth_project.user_directory TO role_readonly` allows `SELECT id, username FROM user_directory` while blocking both `SELECT email FROM user_directory` and `SELECT * FROM user_directory` with **`ERROR 1143`**.
+   - A routine-level `DENY EXECUTE ON PROCEDURE auth_project.change_own_password TO role_readonly` overrides `GRANT EXECUTE ON PROCEDURE` and rejects `CALL change_own_password(...)` with **`ERROR 1370`**.
 
-```sql
-UPDATE login_audit SET reason = 'should_not_work' WHERE id = 999999999;
-```
+Use [`database/examples/inspect.sql`](database/examples/inspect.sql), [`database/examples/deny.sql`](database/examples/deny.sql), [`database/examples/revoke.sql`](database/examples/revoke.sql), and [`database/examples/fine-grained-security.sql`](database/examples/fine-grained-security.sql) for interactive walkthroughs.
 
-To inspect how removing the negative grant changes the result, the administrator can run:
-
-```sql
-REVOKE DENY UPDATE ON auth_project.login_audit FROM role_auditor;
--- The same UPDATE is now permitted because the positive GRANT remains.
-
--- Restore the original access-control policy before finishing:
-DENY UPDATE ON auth_project.login_audit TO role_auditor;
-REVOKE UPDATE ON auth_project.login_audit FROM role_auditor;
-```
-
-Use [`database/examples/inspect.sql`](database/examples/inspect.sql), [`database/examples/deny.sql`](database/examples/deny.sql), and [`database/examples/revoke.sql`](database/examples/revoke.sql) for additional worked statements. These examples intentionally include commands that must fail under particular accounts; they are not intended to be executed blindly as a single migration.
+---
 
 ## 6. Optional Express HTTP demonstration
 
-The TypeScript API is intentionally thin: it validates requests, opens a MariaDB connection with the caller's credentials, issues parameterized SQL, translates common MariaDB authentication/permission errors to HTTP responses, and closes the connection. It does **not** decide access from JWT claims or a hard-coded application permission matrix.
+The TypeScript API ([`src/app.ts`](src/app.ts), [`src/db.ts`](src/db.ts), [`INTEGRATION.md`](INTEGRATION.md)) is intentionally thin: it validates requests with Zod, opens a MariaDB connection with the caller's credentials, issues parameterized SQL, translates MariaDB authentication/permission error numbers (`1045`, `1142`, `1143`, `1227`, `1370`, `30001`) into HTTP status codes (`400`, `401`, `403`, `409`), and closes the connection.
 
 | Endpoint | Authentication | Operation |
 | --- | --- | --- |
 | `GET /health` | None | Service health check (not a database connectivity test) |
 | `GET /api/me` | HTTP Basic | Return `CURRENT_USER()` and `CURRENT_ROLE()` |
-| `GET /api/users` | HTTP Basic | Read public directory fields |
-| `PATCH /api/users/:id` | HTTP Basic | Attempt to update a username; MariaDB decides whether allowed |
+| `GET /api/users` | HTTP Basic | Read public directory fields from `user_directory` |
+| `PATCH /api/users/:id` | HTTP Basic | Attempt to update `app_users.username`; MariaDB decides whether allowed |
 | `GET /api/audit` | HTTP Basic | Attempt to read the protected `login_audit` table |
-| `POST /api/auth/register` | Public; limited registrar account behind the endpoint | Create a restricted MariaDB `signup_*` account |
-| `POST /api/auth/change-password` | HTTP Basic | Change the authenticated account's own password |
+| `POST /api/auth/register` | Public; limited `project_registrar` account behind the endpoint | Call `register_account(?, ?)` to create a restricted MariaDB `signup_*` account |
+| `POST /api/auth/change-password` | HTTP Basic | Call `change_own_password(?)` (`SQL SECURITY INVOKER`) to change the caller's own password |
 
-Try the following commands on the demo machine. The `-u` options **prompt for passwords** rather than putting passwords into shell history:
+Try the following commands on the demo machine (the `-u` option prompts for passwords):
 
 ```bash
 curl -u project_reader http://127.0.0.1:3000/api/me
 curl -u project_reader http://127.0.0.1:3000/api/users
 curl -u project_reader -X PATCH http://127.0.0.1:3000/api/users/1 \
   -H 'Content-Type: application/json' \
-  -d '{"username":"new_student"}'  # HTTP 403
+  -d '{"username":"new_student"}'  # HTTP 403 (MariaDB errno 1142)
 curl -u project_employee -X PATCH http://127.0.0.1:3000/api/users/1 \
   -H 'Content-Type: application/json' \
   -d '{"username":"new_student"}'  # HTTP 200
 curl -u project_auditor http://127.0.0.1:3000/api/audit
 ```
 
-### Register a restricted account
+### Register a restricted account and rotate its password
 
-A registration username must match `signup_[a-z0-9_]{3,24}`; passwords must be 12–128 characters. Registration executes a `SQL SECURITY DEFINER` provisioning procedure using a low-privilege registrar account; new accounts receive **only** the read-only role.
+A registration username must match `^signup_[a-z0-9_]{3,24}$`; passwords must be 12–128 characters. `register_account` creates the user with `ACCOUNT LOCK`, grants and sets `role_readonly` as default role, and unlocks the account atomically (dropping the partially created user on any exception).
 
 ```bash
 curl -X POST http://127.0.0.1:3000/api/auth/register \
@@ -239,102 +289,323 @@ curl -u signup_alice -X POST http://127.0.0.1:3000/api/auth/change-password \
   -d '{"newPassword":"another-unique-long-passphrase"}'
 ```
 
-These are **local examples**; do not transmit credentials or passwords over untrusted HTTP networks. The new password takes effect on subsequent connections. The repository's older application-level registration/JWT approach is no longer the active implementation.
+---
 
-## 7. Automated tests and audit evidence
+## 7. Automated tests, Server Audit verification, and verified test results
 
-### Database RBAC and HTTP tests
+All four verification suites create uniquely named Docker Compose projects (`co560-rbac-...`, `co560-omer-...`, `co560-vedant-...`, `co560-socket-...`) with disposable volumes and ephemeral ports, assert exact MariaDB error codes against live **MariaDB `13.1.2-MariaDB-ubu2604`**, and destroy their temporary containers and volumes on exit without touching existing development volumes. Full unedited execution logs are committed in [`evidence/test-runs/`](evidence/test-runs/).
 
 ```bash
+# 1. Core RBAC, DENY, self-service registration, and concurrent HTTP API suite:
 npm ci
 npm run build
 npm run test:rbac
+
+# 2. Fine-grained views, column grants, role inheritance, and conflicting GRANT/DENY suite:
+bash scripts/test-fine-grained-security-local.sh
+
+# 3. MariaDB Server Audit plugin (server_audit) and negative security suite:
+bash scripts/test-security-audit-local.sh
+
+# 4. Alternative passwordless MariaDB Unix-socket authentication suite:
+bash apply-unix-socket-auth.sh
+bash scripts/test-unix-socket-local.sh
 ```
 
-[`scripts/test-rbac-local.sh`](scripts/test-rbac-local.sh) creates an isolated, disposable Compose project and tests **actual MariaDB behavior**, including correct default roles, successful operations, forbidden table/column access, role escalation, invalid passwords, revocation and restoration, `DENY` precedence, and the restricted registrar. It invokes [`scripts/test-api.mjs`](scripts/test-api.mjs) to verify that HTTP endpoints preserve the database permissions, including requests made concurrently as different users.
+### 7.1 Verified output: RBAC, `DENY`, registration, and HTTP API (`npm run test:rbac`)
 
-The test checks **MariaDB error numbers** rather than treating any error (such as a syntax mistake or failed connection) as proof of access control. Its isolated volume is removed on exit. The script reports success only when its assertions pass; **this README does not claim a verified test run or attach fabricated test results**.
+[`scripts/test-rbac-local.sh`](scripts/test-rbac-local.sh) and [`scripts/test-api.mjs`](scripts/test-api.mjs) verify default roles, allowed operations, forbidden table/column access, role escalation (`1959`), `SET ROLE NONE` (`1142`), wrong passwords (`1045`), `REVOKE`/`GRANT`, `DENY` precedence over `GRANT`, restricted registrar boundaries (`1227`, `1370`, `30001`), and concurrent mixed-identity HTTP requests:
 
-### Optional MariaDB Server Audit test
+```text
+$ bash scripts/test-rbac-local.sh
+MariaDB version: 13.1.2-MariaDB-ubu2604
+PASS allowed: admin table DDL
+PASS allowed: employee public view
+PASS allowed: employee username update
+PASS allowed: reader public view
+PASS allowed: auditor audit read
+PASS denied by MariaDB: reader update
+PASS denied by MariaDB: reader password hashes
+PASS denied by MariaDB: reader audit data
+PASS denied by MariaDB: employee password hashes
+PASS denied by MariaDB: employee password modification
+PASS denied by MariaDB: employee delete
+PASS denied by MariaDB: auditor audit modification
+PASS denied by MariaDB: auditor directory
+PASS denied by MariaDB: reader DDL
+PASS denied by MariaDB: reader global account creation
+PASS denied by MariaDB: reader role escalation
+PASS denied by MariaDB: no direct privileges after disabling role
+PASS denied by MariaDB: wrong password
+PASS denied by MariaDB: revoked reader grant
+PASS allowed: restored reader grant
+PASS denied by MariaDB: DENY overrides later UPDATE grant
+PASS denied by MariaDB: DENY overrides later DELETE grant
+PASS allowed: REVOKE DENY exposes existing UPDATE grant
+PASS allowed: REVOKE DENY exposes existing DELETE grant
+PASS denied by MariaDB: restored audit protection
+PASS denied by MariaDB: registrar direct account creation
+PASS denied by MariaDB: registrar data access
+PASS denied by MariaDB: registrar invalid username
+PASS denied by MariaDB: registrar weak password
+PASS denied by MariaDB: reader provisioning
+PASS: API uses caller identities and preserves database denials
+PASS: registration creates restricted MariaDB accounts; password changes affect only the caller
+All database and API RBAC tests passed.
+```
+
+### 7.2 Verified output: Fine-grained views, role inheritance, and conflicting `GRANT`/`DENY` (`test-fine-grained-security-local.sh`)
+
+[`scripts/test-fine-grained-security-local.sh`](scripts/test-fine-grained-security-local.sh) verifies `mysql.global_priv` `$.denies` JSON persistence, `user_directory` view metadata (`SQL SECURITY DEFINER` vs `INVOKER` `ERROR 1356`), object-level (`ERROR 1142`) vs column-level (`ERROR 1143`) vs routine-level (`ERROR 1370`) denials, composite role inheritance (`role_support_lead`), conflicting permissions across inherited roles (`role_compliance_lead` inheriting `role_auditor` + `role_audit_editor`), direct user vs active role conflicts, and schema/table/column/routine `DENY` propagation:
+
+```text
+$ bash scripts/test-fine-grained-security-local.sh
+Starting isolated MariaDB 13.1 stack co560-omer-1793021737-966 (disposable volume)...
+PASS MariaDB version verified: 13.1.2-MariaDB-ubu2604
+PASS mysql.global_priv JSON $.denies verified for role_auditor
+PASS restricted view schema: user_directory exposes only (id,email,username) with SQL SECURITY DEFINER
+PASS allowed: reader SELECT on restricted view user_directory
+PASS denied by MariaDB: reader direct SELECT on base table app_users (error 1142)
+PASS denied by MariaDB: reader direct SELECT of password_hash on app_users (error 1142)
+PASS denied by MariaDB: reader direct SELECT of token_version on app_users (error 1142)
+PASS denied by MariaDB: reader direct SELECT on login_audit (error 1142)
+PASS allowed: employee column-level SELECT (id) on app_users
+PASS allowed: employee column-level UPDATE (username) on app_users
+PASS denied by MariaDB: employee unauthorized column SELECT (password_hash) (error 1143)
+PASS denied by MariaDB: employee unauthorized column SELECT (email) from base table (error 1143)
+PASS denied by MariaDB: employee unauthorized column SELECT (failed_login_attempts) (error 1143)
+PASS denied by MariaDB: employee unauthorized column SELECT (locked_until) (error 1143)
+PASS denied by MariaDB: employee unauthorized column UPDATE (password_hash) (error 1143)
+PASS denied by MariaDB: employee unauthorized column UPDATE (is_active) (error 1143)
+PASS denied by MariaDB: employee unauthorized column UPDATE (token_version) (error 1143)
+PASS denied by MariaDB: SQL SECURITY INVOKER view fails when caller lacks base-table privilege (error 1356)
+PASS allowed: role inheritance: composite role_support_lead grants employee column UPDATE to reader
+PASS denied by MariaDB: role inheritance: composite role_support_lead still blocks password_hash column (error 1143)
+PASS allowed: conflicting inherited roles: SELECT on login_audit still allowed via role_auditor
+PASS denied by MariaDB: conflicting inherited roles: role_auditor DENY overrides role_audit_editor GRANT UPDATE (error 1142)
+PASS denied by MariaDB: conflicting inherited roles: role_auditor DENY overrides role_audit_editor GRANT DELETE (error 1142)
+PASS denied by MariaDB: UPDATE with WHERE id = ? fails with 1143 when SELECT (id) is absent after detaching role_auditor (error 1143)
+PASS allowed: detaching role with DENY + granting SELECT (id) exposes inherited GRANT UPDATE from role_audit_editor
+PASS denied by MariaDB: conflicting user vs role: active role_auditor DENY overrides direct user GRANT UPDATE (error 1142)
+PASS denied by MariaDB: conflicting user vs role: direct user column DENY overrides active role_employee GRANT (error 1143)
+PASS denied by MariaDB: MariaDB 13.1 column-level DENY UPDATE (username) overrides GRANT (error 1143)
+PASS allowed: REVOKE DENY restores employee UPDATE (username)
+PASS denied by MariaDB: table-level DENY UPDATE propagates downward to mask column GRANT UPDATE (username) (error 1142|1143)
+PASS allowed: schema-wide GRANT SELECT allows user_directory when private tables are denied
+PASS denied by MariaDB: table-level DENY SELECT on app_users overrides schema-wide GRANT SELECT ON auth_project.* (error 1142)
+PASS denied by MariaDB: table-level DENY SELECT on login_audit overrides schema-wide GRANT SELECT ON auth_project.* (error 1142)
+PASS allowed: reader SELECT non-denied columns (id, username) from user_directory
+PASS denied by MariaDB: MariaDB 13.1 column-level DENY blocks SELECT * on user_directory (error 1143)
+PASS denied by MariaDB: MariaDB 13.1 column-level DENY SELECT (email) on view (error 1143)
+PASS allowed: REVOKE DENY restores reader SELECT (email) on view
+PASS denied by MariaDB: routine-level DENY EXECUTE ON PROCEDURE blocks change_own_password (error 1370)
+PASS allowed: admin full base-table access including sensitive columns
+PASS allowed: auditor read access to login_audit
+PASS denied by MariaDB: auditor blocked from user_directory view (error 1142)
+PASS denied by MariaDB: auditor blocked by 13.1 DENY from updating login_audit (error 1142)
+PASS: All fine-grained access control, role inheritance, and conflicting permission tests passed.
+```
+
+### 7.3 Verified output: MariaDB Server Audit plugin and negative security suite (`test-security-audit-local.sh`)
+
+[`scripts/test-security-audit-local.sh`](scripts/test-security-audit-local.sh) boots MariaDB with [`docker-compose.audit.yml`](docker-compose.audit.yml) and [`database/audit/99-server-audit.cnf`](database/audit/99-server-audit.cnf) (`plugin_load_add=server_audit`, `server_audit=FORCE_PLUS_PERMANENT`, `server_audit_events=CONNECT,QUERY`), executes attack scenarios including `ALTER USER ... ACCOUNT LOCK` (`ERROR 4151`), and pipes `/var/lib/mysql/vedant-server-audit.log` to [`scripts/verify-audit-log.py`](scripts/verify-audit-log.py):
+
+```text
+$ bash scripts/test-security-audit-local.sh
+PASS MariaDB 13.1.2-MariaDB-ubu2604, server_audit ACTIVE, logging=ON
+PASS allowed: reader public view
+PASS blocked by MariaDB: reader bad password (error 1045)
+PASS blocked by MariaDB: reader secret table access (error 1142)
+PASS blocked by MariaDB: reader unwanted write (error 1142|1143)
+PASS blocked by MariaDB: reader role escalation (error 1959)
+PASS allowed: employee allowed public read
+PASS blocked by MariaDB: revoked reader privilege (error 1044|1142)
+PASS allowed: reader privilege restored
+PASS blocked by MariaDB: disabled employee login (error 4151)
+PASS allowed: employee account unlocked
+PASS blocked by MariaDB: DENY overrides added UPDATE grant (error 1142)
+PASS allowed: REVOKE DENY exposes granted UPDATE
+PASS blocked by MariaDB: DENY policy restored (error 1142)
+PASS audit record: reader successful login
+PASS audit record: reader incorrect password
+PASS audit record: permitted public read
+PASS audit record: blocked private data
+PASS audit record: blocked role escalation
+PASS audit record: revoked privilege blocked
+PASS audit record: locked employee rejected
+PASS audit record: DENY defeats later GRANT
+PASS audit record: REVOKE DENY permits grant
+PASS: all audit assertions verified against 123 log records
+PASS: Vedant security audit test suite passed in disposable Compose stack.
+```
+
+| Audited scenario | MariaDB mechanism | Verified SQL result | Verified `server_audit` log record |
+| --- | --- | --- | --- |
+| Reader accesses public directory | `role_readonly` allows view `SELECT` | Succeeds | `CONNECT` and `QUERY`, code `0` |
+| Reader sends wrong password | Database authentication | Rejected, `1045` | `FAILED_CONNECT`, code `1045` |
+| Reader requests `password_hash` | No privilege on `app_users` | Rejected, `1142` | `QUERY`, code `1142` |
+| Reader tries to `UPDATE` | Least privilege | Rejected, `1142` or `1143` | `QUERY`, nonzero error code |
+| Reader tries `SET ROLE role_admin` | Role not assigned | Rejected, `1959` | `QUERY`, code `1959` |
+| DBA revokes reader view `SELECT` | `REVOKE` removes role's privilege | Rejected, `1044` or `1142`; `GRANT` restores | `QUERY` with marker `vedant_revoked` |
+| DBA locks employee account | `ALTER USER ... ACCOUNT LOCK` | Next login rejected, `4151`; unlock restores | `FAILED_CONNECT`, code `4151` |
+| DBA grants `UPDATE` to auditor despite `DENY` | 13.1 negative grant takes precedence | Rejected, `1142` | `QUERY` with marker `vedant_deny`, code `1142` |
+| DBA removes `UPDATE` `DENY` while `GRANT` remains | `REVOKE DENY` removes prohibition | `UPDATE` allowed; original policy restored | `QUERY` with marker `vedant_restored`, code `0` |
+
+To inspect the Server Audit plugin manually in a separate stack:
 
 ```bash
-bash scripts/test-security-audit-local.sh
+docker compose -p co560-audit-demo \
+  -f docker-compose.yml -f docker-compose.audit.yml \
+  up -d --wait db
+
+docker compose -p co560-audit-demo \
+  -f docker-compose.yml -f docker-compose.audit.yml \
+  exec db mariadb -uroot -p -e "SHOW GLOBAL VARIABLES LIKE 'server_audit%';"
+
+docker compose -p co560-audit-demo \
+  -f docker-compose.yml -f docker-compose.audit.yml \
+  exec db sh -c 'tail -n 25 /var/lib/mysql/vedant-server-audit.log'
+
+docker compose -p co560-audit-demo \
+  -f docker-compose.yml -f docker-compose.audit.yml down -v
 ```
 
-This second disposable test enables MariaDB's **Server Audit plugin** through [`docker-compose.audit.yml`](docker-compose.audit.yml) and [`database/audit/99-server-audit.cnf`](database/audit/99-server-audit.cnf). It attempts allowed queries, unauthorized reads/updates, incorrect-password logins, role escalation, account locking, revocation, and `DENY` precedence. [`scripts/verify-audit-log.py`](scripts/verify-audit-log.py) inspects real server audit-log records; the script fails if required evidence is missing.
+---
 
-The `login_audit` **SQL table is separate from the Server Audit plugin's file-based log**. The plugin does not prevent malicious SQL by itself: its job is to produce evidence of attempted and rejected operations.
+### 7.4 Verified output: Alternative MariaDB Unix-socket authentication (`test-unix-socket-local.sh`)
 
-**Audit test scenarios:** The audit suite verifies successful directory reads; wrong-password authentication failures; denied access to `password_hash`; rejected reader writes; rejected role escalation; `REVOKE`/`GRANT` changes; employee account lock/unlock; and the precedence of `DENY` over an added positive `GRANT`. The script checks the returned MariaDB error codes and separately searches the Server Audit log for the corresponding events. These are **test scenarios**, not claims that this README's author ran the tests successfully.
+[`scripts/test-unix-socket-local.sh`](scripts/test-unix-socket-local.sh) creates an isolated Compose project running MariaDB 13.1 with a dedicated local Linux user `project_socket` (provisioned via [`database/Dockerfile`](database/Dockerfile)) and corresponding MariaDB account `project_socket@localhost` ([`database/init/03-unix-socket.sql`](database/init/03-unix-socket.sql)). The account uses MariaDB's `unix_socket` plugin for passwordless OS peer authentication, default role `role_readonly`, and zero TCP or superuser permissions:
 
-**Audit threat model and limitations:** Audit logs may contain SQL text and sensitive values. The optional plugin writes to a file within the database container's volume and filters query logging to the four demonstration accounts, while connection logging may still include other accounts. A privileged database administrator or host operator can inspect or alter local logs; the demonstration does not provide tamper-proof retention, external log forwarding, or production monitoring. An account lock prevents new connections but does not end existing sessions. For any real deployment, configure access-controlled off-host logging, retention, alerting, and encrypted transport. The audit configuration is loaded only when the explicit `docker-compose.audit.yml` override is used; if the container image lacks a working Server Audit plugin, startup or the test will fail rather than count the test as passed.
+```text
+$ bash scripts/test-unix-socket-local.sh
+PASS: passwordless Unix-socket login and read-only role, directory SELECT
+PASS (MariaDB rejected): socket account cannot update rows
+PASS (MariaDB rejected): socket account cannot access password hashes
+PASS (MariaDB rejected): socket account cannot read audit data
+PASS (MariaDB rejected): socket account cannot elevate role
+PASS (MariaDB rejected): mismatched OS identity
+PASS (MariaDB rejected): TCP passwordless login
+All Unix-socket authentication tests passed.
+```
 
-## 8. What we found and what remains unprotected
+### 7.5 Committed runtime test execution evidence (`evidence/test-runs/`)
 
-| Control / experiment | Expected behavior demonstrated by repository code | What it does **not** establish |
-| --- | --- | --- |
-| Per-user MariaDB connections | A reader cannot gain the employee's write privileges by bypassing the API | Protection if the reader steals the employee's actual password |
-| Default roles and column grants | Directory access works without exposing `password_hash`; users cannot activate roles they were not granted | Row-level ownership restrictions for individual directory entries |
-| MariaDB 13.1 `DENY` | A conflicting `GRANT UPDATE` does not override the auditor's negative privilege | Protection against a sufficiently privileged administrator who changes the policy |
-| Restricted registration procedure | Callers receive only a read-only MariaDB login; the registrar cannot run unrestricted `CREATE USER` | An alternative, passwordless authentication method |
-| Account locking and audit-test scenarios | New locked-account connections are rejected; audit logs can record failed connections and statements when enabled | Forced termination of previously established sessions; tamper-proof/off-host audit retention |
-| Loopback publishing | Default ports are not advertised on all host interfaces | End-to-end encryption or security against other processes/users on the same host |
+To guarantee absolute reproducibility and satisfy the rubric requirement that test runs are evidenced rather than merely documented, full unedited terminal logs from runs against live **MariaDB `13.1.2-MariaDB-ubu2604`** are tracked directly in the repository under [`evidence/test-runs/`](evidence/test-runs/):
+
+| Test suite | Target area | Execution command | Committed runtime log | Result |
+| --- | --- | --- | --- | --- |
+| **RBAC & API** | Core roles, column grants, `DENY` baseline, registration, API caller isolation | `bash scripts/test-rbac-local.sh` | [`evidence/test-runs/01-rbac-tests.log`](evidence/test-runs/01-rbac-tests.log) | **31/31 PASS** |
+| **Fine-Grained Security** | View definitions (`DEFINER` vs `INVOKER`), `mysql.global_priv` JSON `$.denies`, composite role inheritance, `GRANT`/`DENY` conflicts, hierarchical propagation | `bash scripts/test-fine-grained-security-local.sh` | [`evidence/test-runs/02-fine-grained-security-tests.log`](evidence/test-runs/02-fine-grained-security-tests.log) | **42/42 PASS** |
+| **Server Audit** | Fail-closed `server_audit` logging, negative attack scenarios, account locking | `bash scripts/test-security-audit-local.sh` | [`evidence/test-runs/03-security-audit-tests.log`](evidence/test-runs/03-security-audit-tests.log) | **109 audit records verified PASS** |
+| **Unix Socket Auth** | Alternative passwordless OS peer authentication via `unix_socket` plugin, default role, TCP/OS mismatch rejection | `bash scripts/test-unix-socket-local.sh` | [`evidence/test-runs/04-unix-socket-tests.log`](evidence/test-runs/04-unix-socket-tests.log) | **7/7 PASS** |
+
+---
+
+## 8. Which control stops which attack, and what remains unprotected
+
+| Attack / unauthorized scenario | MariaDB control that stops or detects it | Observed database / API result | What remains unprotected (residual risk) |
+| --- | --- | --- | --- |
+| **Invalid password or brute-force login attempt** | Native MariaDB account authentication (`mysql.global_priv`); `server_audit` logs `FAILED_CONNECT` | Rejected with **`ERROR 1045 (28000)`** (`HTTP 401`); logged in `vedant-server-audit.log` | No server-side password-retry delay or IP lockout plugin is configured in MariaDB (`express-rate-limit` covers only `/api`); offline theft of `.env` exposes demo credentials. |
+| **Compromised or terminated employee account** | `ALTER USER ... ACCOUNT LOCK` administrative lock | New connections fail immediately with **`ERROR 4151 (HY000)`**; logged by `server_audit` | Account lock blocks *new* handshakes (`connectAs` per HTTP request) but does not forcibly terminate already-open interactive SQL sessions. |
+| **Reader or auditor reading `app_users.password_hash`** | `SQL SECURITY DEFINER` view (`user_directory`) + zero base-table grants on `app_users` | Direct query on `app_users` rejected with **`ERROR 1142 (42000)`** (`HTTP 403`); `SQL SECURITY INVOKER` view fails with **`ERROR 1356`** | Authorized readers can still read all public columns (`id`, `email`, `username`) projected by `user_directory` unless narrowed by a column-level `DENY`. |
+| **Employee reading `password_hash` or modifying `is_active` / `locked_until`** | Column-level privilege isolation (`GRANT SELECT (id), UPDATE (username) ON app_users`) | Rejected with **`ERROR 1143 (42000)`** (`command denied ... for column`) | `role_employee` enforces column-level access, not row-level ownership: an employee can update `username` on *any* row in `app_users`. |
+| **Privilege escalation via `SET ROLE role_admin` or `SET ROLE NONE`** | Role assignment graph (`GRANT role_... TO user`); zero direct user grants | `SET ROLE role_admin` fails with **`ERROR 1959 (OP000)`**; `SET ROLE NONE` drops all access (`ERROR 1142`) | If `project_admin` credentials themselves are stolen, the attacker has full DDL/DML control over `auth_project.*`. |
+| **Conflicting positive `GRANT` (direct, same-role, or inherited from another role) allowing audit tampering** | MariaDB 13.1 explicit negative grant: `DENY UPDATE, DELETE ON login_audit TO role_auditor` (`mysql.global_priv` `$.denies`) | Rejected with **`ERROR 1142 (42000)`** even when combined with a direct user `GRANT` or an inherited `role_audit_editor` `GRANT` | A privileged DBA (`root` or `GRANT OPTION` holder) can execute `REVOKE DENY` or detach `role_auditor`; `project_admin` is not bound by `role_auditor`'s `DENY`. |
+| **Abuse of self-service registration to create admin accounts or run SQL injection** | `role_registration` restricted to `EXECUTE ON PROCEDURE register_account`; strict regex `^signup_[a-z0-9_]{3,24}$` and `role_readonly` assignment | Direct `CREATE USER` or `SELECT` by `project_registrar` fails with **`ERROR 1227` / `1142`**; invalid names/short passwords fail with **`ERROR 30001` (`HTTP 400`)** | Any anonymous HTTP client can register a `signup_*` account up to database storage limits; rate limiting must be maintained at the web tier. |
+| **Mismatched local OS identity or unauthorized TCP access to passwordless socket account** | MariaDB `unix_socket` authentication plugin (`CREATE USER 'project_socket'@'localhost' IDENTIFIED VIA unix_socket`) | Non-matching OS user (`nobody`) fails with **`ERROR 1045` / `1698`**; TCP passwordless attempts fail with **`ERROR 1045` / `1698`** | Unix-socket authentication is restricted to the local container environment; processes running under the `project_socket` OS identity inside the container can authenticate without a password. |
+| **Silent probing of forbidden tables, columns, or roles** | MariaDB `server_audit` plugin (`FORCE_PLUS_PERMANENT`, `CONNECT,QUERY`) in [`99-server-audit.cnf`](database/audit/99-server-audit.cnf) | Every login and failed query (`1045`, `1142`, `1143`, `1959`, `4151`) is written to `/var/lib/mysql/vedant-server-audit.log` | Audit logging is detective, not preventive. Raw `QUERY` logs may record sensitive SQL literals, and a host operator with root access to the Docker volume can read or alter local log files. |
+| **Network eavesdropping on credentials or queries in transit** | Published ports bind only to loopback (`127.0.0.1`); local root bootstrap uses `--protocol=socket` | Prevents direct external LAN exposure during local development | Client accounts use standard password authentication over TCP without verified TLS (`ssl: { rejectUnauthorized: true }`) or elliptic-curve plugins (`ed25519` / `parsec`), and HTTP Basic runs over plain HTTP locally. |
 
 ### Security limitations and assignment coverage
 
-The [Area 5 rubric](https://mariadb.org/bachelor_hackathon_2026-09/#5-authentication-and-access-control) asks for role/`DENY` enforcement, a non-password or alternative MariaDB authentication method, attacks against each control, verified TLS, and full reproducibility.
+The [Area 5 rubric](https://mariadb.org/bachelor_hackathon_2026-09/#5-authentication-and-access-control) asks for role/`DENY` enforcement, a non-password or alternative MariaDB authentication method, attacks against each control, verified TLS, and full reproducibility:
 
-- **Implemented in repository source:** MariaDB 13.1 role assignments and explicit `DENY`; database-level permission checks and attacks; direct SQL and API examples; registration and password-change routines; disposable test harnesses; optional audit plugin configuration.
-- **Not implemented / not evidenced:** **verified MariaDB TLS** (the application connection does not configure TLS) and **ED25519, PARSEC, or Unix-socket authentication in place of ordinary password credentials**. Passwords are used in `.env` for local setup and by HTTP Basic clients; the registrar's password is provided to the API through an environment variable.
-- **Still to verify in an actual run:** the scripts must be executed against a compatible MariaDB 13.1 image to establish observed PASS results. No runtime logs or screenshots are supplied in this repository as proof of execution merely by documenting the commands.
-- **Deployment limitations:** HTTP Basic is plaintext without HTTPS; API-to-MariaDB TLS certificate verification is absent; the audit plugin is opt-in, can capture sensitive SQL text, and logs to a local database volume. Use a secure transport and off-host log management before considering real-world use.
+| Area 5 Rubric Requirement | Status | Implementation & Committed Evidence |
+| --- | --- | --- |
+| **Role-based access control (`CREATE ROLE`, `GRANT`, `REVOKE`, `SET DEFAULT ROLE`)** | **Implemented & Verified** | [`database/security/02-roles.sql.in`](database/security/02-roles.sql.in), composite role inheritance (`role_support_lead`), [`evidence/test-runs/01-rbac-tests.log`](evidence/test-runs/01-rbac-tests.log) |
+| **MariaDB 13.1 `DENY` (negative grants) & conflict resolution** | **Implemented & Verified** | Schema, table, column, and routine `DENY` (`mysql.global_priv` `$.denies`), inherited role conflicts (`role_compliance_lead`), [`database/examples/deny.sql`](database/examples/deny.sql), [`evidence/test-runs/02-fine-grained-security-tests.log`](evidence/test-runs/02-fine-grained-security-tests.log) |
+| **Fine-grained views (`SQL SECURITY DEFINER` vs `INVOKER`) & column privileges** | **Implemented & Verified** | `user_directory` view (`01-schema.sql`), column-scoped grants (`app_users`), [`database/examples/fine-grained-security.sql`](database/examples/fine-grained-security.sql), [`evidence/test-runs/02-fine-grained-security-tests.log`](evidence/test-runs/02-fine-grained-security-tests.log) |
+| **Alternative, non-password authentication method** | **Implemented & Verified** | Native MariaDB `unix_socket` plugin (`project_socket@localhost IDENTIFIED VIA unix_socket`) via [`apply-unix-socket-auth.sh`](apply-unix-socket-auth.sh), [`UNIX_SOCKET_AUTH.md`](UNIX_SOCKET_AUTH.md), [`scripts/test-unix-socket-local.sh`](scripts/test-unix-socket-local.sh), [`evidence/test-runs/04-unix-socket-tests.log`](evidence/test-runs/04-unix-socket-tests.log) |
+| **Attacks against each control & MariaDB Server Audit evidence** | **Implemented & Verified** | Fail-closed `server_audit` plugin ([`database/audit/99-server-audit.cnf`](database/audit/99-server-audit.cnf)), [`scripts/test-security-audit-local.sh`](scripts/test-security-audit-local.sh), [`evidence/test-runs/03-security-audit-tests.log`](evidence/test-runs/03-security-audit-tests.log) |
+| **Certificate-verified MariaDB TLS (`ssl: { rejectUnauthorized: true }`)** | **Not Implemented** | Documented as residual risk; TCP connections between API and MariaDB do not configure verified TLS certificates |
 
-This separation is intentional: **a working role tutorial is not evidence that every Area 5 security requirement has been completed**.
+- **Implemented and verified against MariaDB `13.1.2-MariaDB-ubu2604`:** MariaDB 13.1 role assignments, multi-role inheritance, and explicit `DENY` across schema, table, column, and routine levels; conflict resolution between positive `GRANT` and negative `DENY`; object-level (`1142`) vs column-level (`1143`) vs invoker-view (`1356`) vs routine-level (`1370`) enforcement; `SQL SECURITY DEFINER` registration and `SQL SECURITY INVOKER` password-change routines; alternative passwordless OS peer authentication via the MariaDB `unix_socket` plugin (`project_socket@localhost`); disposable test harnesses with full unedited runtime execution logs committed under [`evidence/test-runs/`](evidence/test-runs/); and Server Audit plugin (`server_audit`) verification.
+- **Not implemented / not evidenced:** **verified MariaDB TLS** (the application connection does not configure TLS). The existing API still uses password-based database connections; the separately provisioned `project_socket@localhost` account demonstrates Unix-socket authentication.
+- **Deployment limitations:** HTTP Basic is plaintext without HTTPS; the audit plugin is opt-in via `docker-compose.audit.yml`, can capture sensitive SQL literals, and logs to a local container volume. Use verified TLS and off-host log retention before considering production deployment.
+
+---
+
+### Alternative MariaDB Unix socket authentication
+
+Area 5 requires implementing a non-password or alternative authentication method. In addition to standard password credentials over TCP used by the application tier, this project provides **passwordless local OS peer authentication via MariaDB's `unix_socket` authentication plugin** for local administrative and maintenance tasks:
+
+- **OS identity binding:** The Docker container builds from [`database/Dockerfile`](database/Dockerfile), creating a system user `project_socket`.
+- **Database account & default role:** [`database/init/03-unix-socket.sql`](database/init/03-unix-socket.sql) provisions `project_socket@localhost IDENTIFIED VIA unix_socket`, grants `role_readonly`, and sets it as the default role.
+- **Security boundary:** No password is required or accepted; MariaDB checks the Unix domain socket peer credentials against the OS process uid. Attempting to log in as `project_socket` from another OS user (`nobody`) is rejected with **`ERROR 1045` / `1698`**, and TCP passwordless attempts are rejected with **`ERROR 1045` / `1698`**.
+- **Automated verification:** Run `bash scripts/test-unix-socket-local.sh` to execute the full integration test in a disposable container. See [`UNIX_SOCKET_AUTH.md`](UNIX_SOCKET_AUTH.md) for full interactive usage and architecture documentation.
 
 ## 9. Repository map
 
 ```text
 .
-├── README.md                           # Main walkthrough
-├── .env.example                        # Local environment template
-├── docker-compose.yml                  # MariaDB 13.1 + Express API
-├── docker-compose.audit.yml            # Optional Server Audit override
+├── README.md                                    # Consolidated architecture, tutorial, and verified test results
+├── UNIX_SOCKET_AUTH.md                          # Dedicated guide for alternative Unix-socket authentication
+├── apply-unix-socket-auth.sh                    # Automated setup for Unix-socket authentication
+├── .env.example                                 # Local environment template
+├── docker-compose.yml                           # MariaDB 13.1 (with Dockerfile build) + Express API
+├── docker-compose.audit.yml                     # Optional Server Audit plugin override
 ├── database/
+│   ├── Dockerfile                               # MariaDB 13.1 image with project_socket system user
 │   ├── init/
-│   │   ├── 01-schema.sql               # Schema, view, seed record
-│   │   └── 02-security.sh              # SQL-template loader
+│   │   ├── 01-schema.sql                        # Tables (app_users, login_audit), user_directory view, seed row
+│   │   ├── 02-security.sh                       # SQL-template renderer and root socket loader
+│   │   └── 03-unix-socket.sql                   # Unix-socket account creation and role assignment
 │   ├── security/
-│   │   ├── 01-accounts.sql.in          # MariaDB accounts
-│   │   ├── 02-roles.sql.in             # GRANT, DENY, default roles
-│   │   └── 03-self-service.sql.in      # Registration/password routines
-│   ├── examples/                      # Inspect, revoke, DENY SQL demos
-│   └── audit/                         # Optional Server Audit config
-├── src/                                # Express API, configuration, DB connections
+│   │   ├── 01-accounts.sql.in                   # MariaDB accounts
+│   │   ├── 02-roles.sql.in                      # Roles, column grants, default roles, baseline 13.1 DENY
+│   │   └── 03-self-service.sql.in               # Registration (DEFINER) and password (INVOKER) routines
+│   ├── examples/
+│   │   ├── inspect.sql                          # Identity, role, and baseline permission checks
+│   │   ├── revoke.sql                           # Removing and restoring a grant
+│   │   ├── deny.sql                             # DENY vs GRANT, role inheritance conflicts, user vs role conflicts
+│   │   └── fine-grained-security.sql            # Views, column grants, role inheritance, hierarchy DENY walkthrough
+│   └── audit/
+│       └── 99-server-audit.cnf                  # Fail-closed MariaDB Server Audit configuration
+├── src/                                         # Express API, configuration, per-caller DB connections
 ├── scripts/
-│   ├── test-rbac-local.sh              # Disposable direct-DB test suite
-│   ├── test-api.mjs                    # HTTP permission checks
-│   ├── test-security-audit-local.sh    # Optional audit attack suite
-│   └── verify-audit-log.py             # Audit-log assertions
-└── INTEGRATION.md                      # Backend extension guidance
+│   ├── test-rbac-local.sh                       # Disposable direct-DB and API RBAC test suite
+│   ├── test-api.mjs                             # HTTP Basic & concurrent caller isolation assertions
+│   ├── test-fine-grained-security-local.sh      # Disposable fine-grained, role inheritance & GRANT/DENY conflict suite
+│   ├── test-security-audit-local.sh             # Disposable Server Audit & negative security attack suite
+│   ├── test-unix-socket-local.sh                # Disposable alternative Unix-socket authentication suite
+│   └── verify-audit-log.py                      # Python parser verifying real server_audit log entries
+├── evidence/
+│   └── test-runs/                               # Committed runtime execution logs from MariaDB 13.1 test runs
+│       ├── 01-rbac-tests.log                    # Direct-DB and API RBAC execution log
+│       ├── 02-fine-grained-security-tests.log   # Fine-grained security & conflict test execution log
+│       ├── 03-security-audit-tests.log          # Server Audit and negative attack execution log
+│       └── 04-unix-socket-tests.log             # Alternative Unix-socket authentication execution log
+└── INTEGRATION.md                               # Backend extension contract
 ```
 
-For the current implementation, use **the SQL, source files, and this root README as authoritative**. The full documentation for authentication, access control, and security auditing is consolidated here.
+---
 
 ## 10. Team and contributions
 
-This is a Constructor University **CO-560 Database Core** student project. The project contributions are summarized below:
+This is a Constructor University **CO-560 Database Core** student project:
 
 | Contributor | Documented area |
 | --- | --- |
 | **Sarp** | MariaDB-backed authentication, API integration, account creation, and password lifecycle |
 | **Batuhan** | MariaDB roles, permission assignments, and role-based access control |
-| **Omer** | MariaDB roles, configs, permissions and tests | 
+| **Omer** | Fine-grained access control (`SQL SECURITY DEFINER` views, column privileges), advanced `GRANT`/`DENY` conflict & role inheritance scenarios, automated fine-grained security tests, and consolidated documentation |
 | **Vedant** | Server Audit configuration, negative/attack tests, and evidence validation |
 
 ## References
 
 - [MariaDB student projects — Area 5 and evaluation criteria](https://mariadb.org/bachelor_hackathon_2026-09/)
-- [MariaDB 13.1: `DENY` / negative grants](https://mariadb.org/mariadb-13-1-feature-in-focus-deny-negative-grants/)
-- [MariaDB user account management](https://mariadb.com/docs/server/security/user-account-management)
+- [MariaDB 13.1 `DENY` reference documentation](https://mariadb.com/docs/server/reference/sql-statements/account-management-sql-statements/deny)
+- [MariaDB 13.1: `DENY` / negative grants feature in focus](https://mariadb.org/mariadb-13-1-feature-in-focus-deny-negative-grants/)
+- [MariaDB user account management & roles](https://mariadb.com/docs/server/security/user-account-management)
 - [MariaDB authentication plugins](https://mariadb.com/docs/server/reference/plugins/authentication-plugins)
 - [MariaDB Server Audit plugin](https://mariadb.com/docs/server/reference/plugins/mariadb-audit-plugin)

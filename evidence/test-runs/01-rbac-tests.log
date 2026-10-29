@@ -1,0 +1,156 @@
+time="2026-10-28T18:33:12+03:00" level=warning msg="Docker Compose is configured to build using Bake, but buildx isn't installed"
+#0 building with "default" instance using docker driver
+
+#1 [db internal] load build definition from Dockerfile
+#1 transferring dockerfile: 170B done
+#1 DONE 0.0s
+
+#2 [db internal] load metadata for quay.io/mariadb-foundation/mariadb-devel:13.1
+#2 DONE 0.0s
+
+#3 [db internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [db 1/2] FROM quay.io/mariadb-foundation/mariadb-devel:13.1@sha256:322121dbed039a4deeca8c5f884280b76ec3a2dd88cb7dd7d9f5ee8edcc6675e
+#4 resolve quay.io/mariadb-foundation/mariadb-devel:13.1@sha256:322121dbed039a4deeca8c5f884280b76ec3a2dd88cb7dd7d9f5ee8edcc6675e 0.0s done
+#4 DONE 0.0s
+
+#5 [db 2/2] RUN useradd --system --no-create-home --shell /usr/sbin/nologin project_socket
+#5 CACHED
+
+#6 [db] exporting to image
+#6 exporting layers done
+#6 exporting manifest sha256:59781576709954d65f2cd65134992711bce435bf7deeb4d3e21bd991bb8209ce 0.0s done
+#6 exporting config sha256:95bc6e16e6987c0cc42689a200a4bde7ee29c3654b9669e9c346a8d852139061 0.0s done
+#6 exporting attestation manifest sha256:32a29886d7893b5c697dfc98f279a422f7eea815cf8dfaaa5becb89c94221525
+#6 exporting attestation manifest sha256:32a29886d7893b5c697dfc98f279a422f7eea815cf8dfaaa5becb89c94221525 0.0s done
+#6 exporting manifest list sha256:d49793398d0e14c975fd5852c34e9115685e5f88584286a24ff63529b8ad31ef done
+#6 naming to docker.io/library/co560-rbac-1793201592-4932-db:latest done
+#6 unpacking to docker.io/library/co560-rbac-1793201592-4932-db:latest 0.0s done
+#6 DONE 0.1s
+
+#7 [db] resolving provenance for metadata file
+#7 DONE 0.0s
+
+#8 [api internal] load build definition from Dockerfile
+#8 transferring dockerfile: 377B done
+#8 DONE 0.0s
+
+#9 [api internal] load metadata for docker.io/library/node:22-bookworm-slim
+#9 DONE 0.9s
+
+#10 [api internal] load .dockerignore
+#10 transferring context: 2B done
+#10 DONE 0.0s
+
+#11 [api build 1/7] FROM docker.io/library/node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da
+#11 resolve docker.io/library/node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da 0.0s done
+#11 DONE 0.0s
+
+#12 [api internal] load build context
+#12 transferring context: 253B done
+#12 DONE 0.0s
+
+#13 [api build 2/7] WORKDIR /app
+#13 CACHED
+
+#14 [api build 3/7] COPY package*.json ./
+#14 CACHED
+
+#15 [api runtime 4/5] RUN npm ci --omit=dev
+#15 CACHED
+
+#16 [api build 5/7] COPY tsconfig.json ./
+#16 CACHED
+
+#17 [api build 6/7] COPY src ./src
+#17 CACHED
+
+#18 [api build 4/7] RUN npm ci
+#18 CACHED
+
+#19 [api build 7/7] RUN npm run build
+#19 CACHED
+
+#20 [api runtime 5/5] COPY --from=build /app/dist ./dist
+#20 CACHED
+
+#21 [api] exporting to image
+#21 exporting layers done
+#21 exporting manifest sha256:c64c22637b1cd441d9b09585f9f74e4fff2ed81d927d2eb3e4077d4e58b205c0 0.0s done
+#21 exporting config sha256:021c2b155f6b93f96cc3e21701dc69fbff7099a8956f936d4d4988f23065b020 done
+#21 exporting attestation manifest sha256:3c8df26909d66b9c7eedb02462ccdd1e634f80b1d931f5e0f74bc7e22fce1238 0.0s done
+#21 exporting manifest list sha256:37252a2fc48d9652e34ce7315c0ccbec19f687c2c3a1fddae8b680d2619c0a79 done
+#21 naming to docker.io/library/co560-rbac-1793201592-4932-api:latest done
+#21 unpacking to docker.io/library/co560-rbac-1793201592-4932-api:latest done
+#21 DONE 0.1s
+
+#22 [api] resolving provenance for metadata file
+#22 DONE 0.0s
+ api  Built
+ db  Built
+ Network co560-rbac-1793201592-4932_default  Creating
+ Network co560-rbac-1793201592-4932_default  Created
+ Volume co560-rbac-1793201592-4932_mariadb_13_1_data  Creating
+ Volume co560-rbac-1793201592-4932_mariadb_13_1_data  Created
+ Container co560-rbac-1793201592-4932-db-1  Creating
+ Container co560-rbac-1793201592-4932-db-1  Created
+ Container co560-rbac-1793201592-4932-api-1  Creating
+ Container co560-rbac-1793201592-4932-api-1  Created
+ Container co560-rbac-1793201592-4932-db-1  Starting
+ Container co560-rbac-1793201592-4932-db-1  Started
+ Container co560-rbac-1793201592-4932-db-1  Waiting
+ Container co560-rbac-1793201592-4932-db-1  Healthy
+ Container co560-rbac-1793201592-4932-api-1  Starting
+ Container co560-rbac-1793201592-4932-api-1  Started
+ Container co560-rbac-1793201592-4932-api-1  Waiting
+ Container co560-rbac-1793201592-4932-db-1  Waiting
+ Container co560-rbac-1793201592-4932-api-1  Healthy
+ Container co560-rbac-1793201592-4932-db-1  Healthy
+MariaDB version: 13.1.2-MariaDB-ubu2604
+WARNING: option --ssl-verify-server-cert is disabled, because of an insecure passwordless login.
+WARNING: option --ssl-verify-server-cert is disabled, because of an insecure passwordless login.
+WARNING: option --ssl-verify-server-cert is disabled, because of an insecure passwordless login.
+WARNING: option --ssl-verify-server-cert is disabled, because of an insecure passwordless login.
+WARNING: option --ssl-verify-server-cert is disabled, because of an insecure passwordless login.
+PASS allowed: admin table DDL
+WARNING: option --ssl-verify-server-cert is disabled, because of an insecure passwordless login.
+PASS allowed: employee public view
+WARNING: option --ssl-verify-server-cert is disabled, because of an insecure passwordless login.
+PASS allowed: employee username update
+WARNING: option --ssl-verify-server-cert is disabled, because of an insecure passwordless login.
+PASS allowed: reader public view
+WARNING: option --ssl-verify-server-cert is disabled, because of an insecure passwordless login.
+PASS allowed: auditor audit read
+PASS denied by MariaDB: reader update
+PASS denied by MariaDB: reader password hashes
+PASS denied by MariaDB: reader audit data
+PASS denied by MariaDB: employee password hashes
+PASS denied by MariaDB: employee password modification
+PASS denied by MariaDB: employee delete
+PASS denied by MariaDB: auditor audit modification
+PASS denied by MariaDB: auditor directory
+PASS denied by MariaDB: reader DDL
+PASS denied by MariaDB: reader global account creation
+PASS denied by MariaDB: reader role escalation
+PASS denied by MariaDB: no direct privileges after disabling role
+PASS denied by MariaDB: wrong password
+PASS denied by MariaDB: revoked reader grant
+WARNING: option --ssl-verify-server-cert is disabled, because of an insecure passwordless login.
+PASS allowed: restored reader grant
+PASS denied by MariaDB: DENY overrides later UPDATE grant
+PASS denied by MariaDB: DENY overrides later DELETE grant
+WARNING: option --ssl-verify-server-cert is disabled, because of an insecure passwordless login.
+PASS allowed: REVOKE DENY exposes existing UPDATE grant
+WARNING: option --ssl-verify-server-cert is disabled, because of an insecure passwordless login.
+PASS allowed: REVOKE DENY exposes existing DELETE grant
+PASS denied by MariaDB: restored audit protection
+PASS denied by MariaDB: registrar direct account creation
+PASS denied by MariaDB: registrar data access
+PASS denied by MariaDB: registrar invalid username
+PASS denied by MariaDB: registrar weak password
+PASS denied by MariaDB: reader provisioning
+PASS: API uses caller identities and preserves database denials
+PASS: registration creates restricted MariaDB accounts; password changes affect only the caller
+All database and API RBAC tests passed.
