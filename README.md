@@ -499,6 +499,41 @@ To guarantee absolute reproducibility and satisfy the rubric requirement that te
 | **Server Audit** | Fail-closed `server_audit` logging, negative attack scenarios, account locking | `bash scripts/test-security-audit-local.sh` | [`evidence/test-runs/03-security-audit-tests.log`](evidence/test-runs/03-security-audit-tests.log) | **109 audit records verified PASS** |
 | **Unix Socket Auth** | Alternative passwordless OS peer authentication via `unix_socket` plugin, default role, TCP/OS mismatch rejection | `bash scripts/test-unix-socket-local.sh` | [`evidence/test-runs/04-unix-socket-tests.log`](evidence/test-runs/04-unix-socket-tests.log) | **7/7 PASS** |
 
+### 7.6 Visual test and security verification screenshots (`evidence/screenshots/`)
+
+To inspect and capture visual evidence on a live terminal, run:
+```bash
+bash scripts/show-screenshot-scenarios.sh
+```
+
+| Screenshot | Verified security scenario | Primary control exercised | Evidence file |
+| --- | --- | --- | --- |
+| **01** | All test suites passing (RBAC, Fine-Grained, Audit, Socket) | Automated test harness verification | [`evidence/screenshots/01-test-suites-pass.png`](evidence/screenshots/01-test-suites-pass.png) |
+| **02** | Column privilege denial & restricted view isolation | `SQL SECURITY DEFINER` view & `ERROR 1143` | [`evidence/screenshots/02-column-privilege-denial.png`](evidence/screenshots/02-column-privilege-denial.png) |
+| **03** | MariaDB 13.1 explicit negative grant (`DENY`) conflict | `mysql.global_priv` JSON `$.denies` & `ERROR 1142` | [`evidence/screenshots/03-deny-override-conflict.png`](evidence/screenshots/03-deny-override-conflict.png) |
+| **04** | MariaDB Server Audit plugin tamper-evident log stream | `server_audit` (`CONNECT,QUERY`) fail-closed audit | [`evidence/screenshots/04-server-audit-logging.png`](evidence/screenshots/04-server-audit-logging.png) |
+| **05** | Alternative passwordless OS peer auth (`unix_socket`) | Native `unix_socket` plugin & `ERROR 1698` rejection | [`evidence/screenshots/05-unix-socket-peer-auth.png`](evidence/screenshots/05-unix-socket-peer-auth.png) |
+
+<details>
+<summary><b>Click to expand inline terminal screenshots</b></summary>
+
+#### 01. All Test Suites Passing (RBAC, Fine-Grained, Server Audit, Unix Socket)
+![01 Test Suites Passing](evidence/screenshots/01-test-suites-pass.png)
+
+#### 02. Column Privilege Denial & Restricted View Isolation
+![02 Column Privilege Denial](evidence/screenshots/02-column-privilege-denial.png)
+
+#### 03. MariaDB 13.1 Explicit Negative Grant (DENY) & Conflict Resolution
+![03 DENY Conflict Resolution](evidence/screenshots/03-deny-override-conflict.png)
+
+#### 04. MariaDB Server Audit Tamper-Evident Log Output
+![04 Server Audit Logging](evidence/screenshots/04-server-audit-logging.png)
+
+#### 05. Alternative Non-Password Authentication (unix_socket plugin)
+![05 Unix Socket Peer Auth](evidence/screenshots/05-unix-socket-peer-auth.png)
+
+</details>
+
 ---
 
 ## 8. Which control stops which attack, and what remains unprotected
