@@ -1,0 +1,79 @@
+Starting isolated project co560-vedant-1793201692-13476 (temporary volume destroyed on exit)
+time="2026-10-28T18:34:52+03:00" level=warning msg="Docker Compose is configured to build using Bake, but buildx isn't installed"
+#0 building with "default" instance using docker driver
+
+#1 [db internal] load build definition from Dockerfile
+#1 DONE 0.0s
+
+#1 [db internal] load build definition from Dockerfile
+#1 transferring dockerfile: 170B done
+#1 DONE 0.0s
+
+#2 [db internal] load metadata for quay.io/mariadb-foundation/mariadb-devel:13.1
+#2 DONE 0.0s
+
+#3 [db internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [db 1/2] FROM quay.io/mariadb-foundation/mariadb-devel:13.1@sha256:322121dbed039a4deeca8c5f884280b76ec3a2dd88cb7dd7d9f5ee8edcc6675e
+#4 resolve quay.io/mariadb-foundation/mariadb-devel:13.1@sha256:322121dbed039a4deeca8c5f884280b76ec3a2dd88cb7dd7d9f5ee8edcc6675e 0.0s done
+#4 DONE 0.0s
+
+#5 [db 2/2] RUN useradd --system --no-create-home --shell /usr/sbin/nologin project_socket
+#5 CACHED
+
+#6 [db] exporting to image
+#6 exporting layers done
+#6 exporting manifest sha256:8f544047c8ab620867a78927f9f4deed7d0bf5f2dad1349c9b14f5a3413f8c76 done
+#6 exporting config sha256:d3e601410d4e5bd6e7670d87f408be5bae5e564355b260ba1a83759410ef38fc done
+#6 exporting attestation manifest sha256:c6ea6c5eee4622ac7f24779181c19c8eacfe81c869692936905fa5e48b3bae5f 0.0s done
+#6 exporting manifest list sha256:7c8877205285a82dc311eceb91b1c42214efeafdeedd7d37597f1b5d86abd293
+#6 exporting manifest list sha256:7c8877205285a82dc311eceb91b1c42214efeafdeedd7d37597f1b5d86abd293 done
+#6 naming to docker.io/library/co560-vedant-1793201692-13476-db:latest done
+#6 unpacking to docker.io/library/co560-vedant-1793201692-13476-db:latest done
+#6 DONE 0.1s
+
+#7 [db] resolving provenance for metadata file
+#7 DONE 0.0s
+ db  Built
+ Network co560-vedant-1793201692-13476_default  Creating
+ Network co560-vedant-1793201692-13476_default  Created
+ Volume co560-vedant-1793201692-13476_mariadb_13_1_data  Creating
+ Volume co560-vedant-1793201692-13476_mariadb_13_1_data  Created
+ Container co560-vedant-1793201692-13476-db-1  Creating
+ Container co560-vedant-1793201692-13476-db-1  Created
+ Container co560-vedant-1793201692-13476-db-1  Starting
+ Container co560-vedant-1793201692-13476-db-1  Started
+ Container co560-vedant-1793201692-13476-db-1  Waiting
+ Container co560-vedant-1793201692-13476-db-1  Healthy
+PASS MariaDB 13.1.2-MariaDB-ubu2604, server_audit ACTIVE, logging=ON
+WARNING: option --ssl-verify-server-cert is disabled, because of an insecure passwordless login.
+PASS allowed: reader public view
+PASS blocked by MariaDB: reader bad password (error 1045)
+PASS blocked by MariaDB: reader secret table access (error 1142)
+PASS blocked by MariaDB: reader unwanted write (error 1142|1143)
+PASS blocked by MariaDB: reader role escalation (error 1959)
+WARNING: option --ssl-verify-server-cert is disabled, because of an insecure passwordless login.
+PASS allowed: employee allowed public read
+PASS blocked by MariaDB: revoked reader privilege (error 1044|1142)
+WARNING: option --ssl-verify-server-cert is disabled, because of an insecure passwordless login.
+PASS allowed: reader privilege restored
+PASS blocked by MariaDB: disabled employee login (error 4151)
+WARNING: option --ssl-verify-server-cert is disabled, because of an insecure passwordless login.
+PASS allowed: employee account unlocked
+PASS blocked by MariaDB: DENY overrides added UPDATE grant (error 1142)
+WARNING: option --ssl-verify-server-cert is disabled, because of an insecure passwordless login.
+PASS allowed: REVOKE DENY exposes granted UPDATE
+PASS blocked by MariaDB: DENY policy restored (error 1142)
+PASS audit record: reader successful login
+PASS audit record: reader incorrect password
+PASS audit record: permitted public read
+PASS audit record: blocked private data
+PASS audit record: blocked role escalation
+PASS audit record: revoked privilege blocked
+PASS audit record: locked employee rejected
+PASS audit record: DENY defeats later GRANT
+PASS audit record: REVOKE DENY permits grant
+PASS: all audit assertions verified against 109 log records
+PASS: Vedant security audit test suite passed in disposable Compose stack.

@@ -38,3 +38,6 @@ self_service="$(render /opt/project-security/03-self-service.sql.in)"
   printf "SET SESSION sql_mode = 'NO_BACKSLASH_ESCAPES';\n"
   printf '%s\n' "$accounts" "$roles" "$self_service"
 } | MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mariadb --protocol=socket -uroot "$MARIADB_DATABASE"
+
+set +eu
+set +o pipefail 2>/dev/null || true

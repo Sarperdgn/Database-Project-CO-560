@@ -1,6 +1,8 @@
 services:
   db:
-    image: quay.io/mariadb-foundation/mariadb-devel:13.1
+    build:
+      context: .
+      dockerfile: database/Dockerfile
     restart: unless-stopped
     environment:
       MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?Required}

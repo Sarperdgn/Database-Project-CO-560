@@ -1,0 +1,119 @@
+time="2026-10-28T18:35:19+03:00" level=warning msg="Docker Compose is configured to build using Bake, but buildx isn't installed"
+#0 building with "default" instance using docker driver
+
+#1 [db internal] load build definition from Dockerfile
+#1 transferring dockerfile: 170B done
+#1 DONE 0.0s
+
+#2 [db internal] load metadata for quay.io/mariadb-foundation/mariadb-devel:13.1
+#2 DONE 0.0s
+
+#3 [db internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [db 1/2] FROM quay.io/mariadb-foundation/mariadb-devel:13.1@sha256:322121dbed039a4deeca8c5f884280b76ec3a2dd88cb7dd7d9f5ee8edcc6675e
+#4 resolve quay.io/mariadb-foundation/mariadb-devel:13.1@sha256:322121dbed039a4deeca8c5f884280b76ec3a2dd88cb7dd7d9f5ee8edcc6675e 0.0s done
+#4 DONE 0.0s
+
+#5 [db 2/2] RUN useradd --system --no-create-home --shell /usr/sbin/nologin project_socket
+#5 CACHED
+
+#6 [db] exporting to image
+#6 exporting layers done
+#6 exporting manifest sha256:f1899e6bcc73b5a50d67be37fb19178f9639b0bc0f80e05c3426ba600ec2107d done
+#6 exporting config sha256:cbe42ddc7bfc3b36edbe4d19b92817e2f4c58f8fbb9614689627eceafee753b0 done
+#6 exporting attestation manifest sha256:5d04e5a35c5df1b07b8ab9c9b8d97620cde2198bd23717a50386af32662ceef1 0.0s done
+#6 exporting manifest list sha256:c54f781a28eb511bef2169f788cfd883df2375047ce85064daca0ad94269ac84
+#6 exporting manifest list sha256:c54f781a28eb511bef2169f788cfd883df2375047ce85064daca0ad94269ac84 done
+#6 naming to docker.io/library/co560-socket-1793201719-15661-db:latest done
+#6 unpacking to docker.io/library/co560-socket-1793201719-15661-db:latest 0.0s done
+#6 DONE 0.1s
+
+#7 [db] resolving provenance for metadata file
+#7 DONE 0.0s
+
+#8 [api internal] load build definition from Dockerfile
+#8 transferring dockerfile: 377B done
+#8 DONE 0.0s
+
+#9 [api internal] load metadata for docker.io/library/node:22-bookworm-slim
+#9 DONE 0.8s
+
+#10 [api internal] load .dockerignore
+#10 transferring context: 2B done
+#10 DONE 0.0s
+
+#11 [api build 1/7] FROM docker.io/library/node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da
+#11 resolve docker.io/library/node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da 0.0s done
+#11 DONE 0.0s
+
+#12 [api internal] load build context
+#12 transferring context: 253B done
+#12 DONE 0.0s
+
+#13 [api runtime 4/5] RUN npm ci --omit=dev
+#13 CACHED
+
+#14 [api build 4/7] RUN npm ci
+#14 CACHED
+
+#15 [api build 3/7] COPY package*.json ./
+#15 CACHED
+
+#16 [api build 7/7] RUN npm run build
+#16 CACHED
+
+#17 [api build 2/7] WORKDIR /app
+#17 CACHED
+
+#18 [api build 5/7] COPY tsconfig.json ./
+#18 CACHED
+
+#19 [api build 6/7] COPY src ./src
+#19 CACHED
+
+#20 [api runtime 5/5] COPY --from=build /app/dist ./dist
+#20 CACHED
+
+#21 [api] exporting to image
+#21 exporting layers done
+#21 exporting manifest sha256:c791a79dad2653e55433772d765734e169883f498e0f83105f6ed8a0ddf3d697 done
+#21 exporting config sha256:e0191fbd9c05d11c23aca9c4de4a79c574cd52f0e4c0e35e26d26329d4cf46f7 done
+#21 exporting attestation manifest sha256:bc00afe3325a6fe58e0675d200fea35d89cda8459ff338d5531801f0aa418b56 0.0s done
+#21 exporting manifest list sha256:c47655e4d70fccf6e28698e529731e2752079f190a66de683df2b7dc5cd3a09d done
+#21 naming to docker.io/library/co560-socket-1793201719-15661-api:latest
+#21 naming to docker.io/library/co560-socket-1793201719-15661-api:latest done
+#21 unpacking to docker.io/library/co560-socket-1793201719-15661-api:latest done
+#21 DONE 0.1s
+
+#22 [api] resolving provenance for metadata file
+#22 DONE 0.0s
+ api  Built
+ db  Built
+ Network co560-socket-1793201719-15661_default  Creating
+ Network co560-socket-1793201719-15661_default  Created
+ Volume co560-socket-1793201719-15661_mariadb_13_1_data  Creating
+ Volume co560-socket-1793201719-15661_mariadb_13_1_data  Created
+ Container co560-socket-1793201719-15661-db-1  Creating
+ Container co560-socket-1793201719-15661-db-1  Created
+ Container co560-socket-1793201719-15661-api-1  Creating
+ Container co560-socket-1793201719-15661-api-1  Created
+ Container co560-socket-1793201719-15661-db-1  Starting
+ Container co560-socket-1793201719-15661-db-1  Started
+ Container co560-socket-1793201719-15661-db-1  Waiting
+ Container co560-socket-1793201719-15661-db-1  Healthy
+ Container co560-socket-1793201719-15661-api-1  Starting
+ Container co560-socket-1793201719-15661-api-1  Started
+ Container co560-socket-1793201719-15661-db-1  Waiting
+ Container co560-socket-1793201719-15661-api-1  Waiting
+ Container co560-socket-1793201719-15661-api-1  Healthy
+ Container co560-socket-1793201719-15661-db-1  Healthy
+PASS: passwordless Unix-socket login and read-only role, directory SELECT
+PASS (MariaDB rejected): socket account cannot update rows
+PASS (MariaDB rejected): socket account cannot access password hashes
+PASS (MariaDB rejected): socket account cannot read audit data
+PASS (MariaDB rejected): socket account cannot elevate role
+PASS (MariaDB rejected): mismatched OS identity
+PASS (MariaDB rejected): TCP passwordless login
+All Unix-socket authentication tests passed.

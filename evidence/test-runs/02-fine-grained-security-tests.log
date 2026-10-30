@@ -1,0 +1,89 @@
+Starting isolated MariaDB 13.1 stack co560-omer-1793201641-8346 (disposable volume)...
+time="2026-10-28T18:34:01+03:00" level=warning msg="Docker Compose is configured to build using Bake, but buildx isn't installed"
+#0 building with "default" instance using docker driver
+
+#1 [db internal] load build definition from Dockerfile
+#1 transferring dockerfile: 170B done
+#1 DONE 0.0s
+
+#2 [db internal] load metadata for quay.io/mariadb-foundation/mariadb-devel:13.1
+#2 DONE 0.0s
+
+#3 [db internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [db 1/2] FROM quay.io/mariadb-foundation/mariadb-devel:13.1@sha256:322121dbed039a4deeca8c5f884280b76ec3a2dd88cb7dd7d9f5ee8edcc6675e
+#4 resolve quay.io/mariadb-foundation/mariadb-devel:13.1@sha256:322121dbed039a4deeca8c5f884280b76ec3a2dd88cb7dd7d9f5ee8edcc6675e 0.0s done
+#4 DONE 0.0s
+
+#5 [db 2/2] RUN useradd --system --no-create-home --shell /usr/sbin/nologin project_socket
+#5 CACHED
+
+#6 [db] exporting to image
+#6 exporting layers done
+#6 exporting manifest sha256:3b226609ffa8688f386a39a04435fe44f76cf9af722a1ed8fec413ae07591c60 done
+#6 exporting config sha256:69cd9aa80743cf42668c2ebcccf54b13cf49eb7b56e460e9b0bf0dd4a94a2bd0 done
+#6 exporting attestation manifest sha256:f31f858082982e1f51df0a9b7ce11e6f09c4157582b68ae83898953bb368c008 0.0s done
+#6 exporting manifest list sha256:ef1f9a658a4749eb6ef2525dba0ddd851d7a3a9f7763bfe22e3c5e64c954cc66
+#6 exporting manifest list sha256:ef1f9a658a4749eb6ef2525dba0ddd851d7a3a9f7763bfe22e3c5e64c954cc66 done
+#6 naming to docker.io/library/co560-omer-1793201641-8346-db:latest done
+#6 unpacking to docker.io/library/co560-omer-1793201641-8346-db:latest 0.0s done
+#6 DONE 0.1s
+
+#7 [db] resolving provenance for metadata file
+#7 DONE 0.0s
+ db  Built
+ Network co560-omer-1793201641-8346_default  Creating
+ Network co560-omer-1793201641-8346_default  Created
+ Volume co560-omer-1793201641-8346_mariadb_13_1_data  Creating
+ Volume co560-omer-1793201641-8346_mariadb_13_1_data  Created
+ Container co560-omer-1793201641-8346-db-1  Creating
+ Container co560-omer-1793201641-8346-db-1  Created
+ Container co560-omer-1793201641-8346-db-1  Starting
+ Container co560-omer-1793201641-8346-db-1  Started
+ Container co560-omer-1793201641-8346-db-1  Waiting
+ Container co560-omer-1793201641-8346-db-1  Healthy
+PASS MariaDB version verified: 13.1.2-MariaDB-ubu2604
+PASS mysql.global_priv JSON $.denies verified for role_auditor
+PASS restricted view schema: user_directory exposes only (id,email,username) with SQL SECURITY DEFINER
+PASS allowed: reader SELECT on restricted view user_directory
+PASS denied by MariaDB: reader direct SELECT on base table app_users (error 1142)
+PASS denied by MariaDB: reader direct SELECT of password_hash on app_users (error 1142)
+PASS denied by MariaDB: reader direct SELECT of token_version on app_users (error 1142)
+PASS denied by MariaDB: reader direct SELECT on login_audit (error 1142)
+PASS allowed: employee column-level SELECT (id) on app_users
+PASS allowed: employee column-level UPDATE (username) on app_users
+PASS denied by MariaDB: employee unauthorized column SELECT (password_hash) (error 1143)
+PASS denied by MariaDB: employee unauthorized column SELECT (email) from base table (error 1143)
+PASS denied by MariaDB: employee unauthorized column SELECT (failed_login_attempts) (error 1143)
+PASS denied by MariaDB: employee unauthorized column SELECT (locked_until) (error 1143)
+PASS denied by MariaDB: employee unauthorized column UPDATE (password_hash) (error 1143)
+PASS denied by MariaDB: employee unauthorized column UPDATE (is_active) (error 1143)
+PASS denied by MariaDB: employee unauthorized column UPDATE (token_version) (error 1143)
+PASS denied by MariaDB: SQL SECURITY INVOKER view fails when caller lacks base-table privilege (error 1356)
+PASS allowed: role inheritance: composite role_support_lead grants employee column UPDATE to reader
+PASS denied by MariaDB: role inheritance: composite role_support_lead still blocks password_hash column (error 1143)
+PASS allowed: conflicting inherited roles: SELECT on login_audit still allowed via role_auditor
+PASS denied by MariaDB: conflicting inherited roles: role_auditor DENY overrides role_audit_editor GRANT UPDATE (error 1142)
+PASS denied by MariaDB: conflicting inherited roles: role_auditor DENY overrides role_audit_editor GRANT DELETE (error 1142)
+PASS denied by MariaDB: UPDATE with WHERE id = ? fails with 1143 when SELECT (id) is absent after detaching role_auditor (error 1143)
+PASS allowed: detaching role with DENY + granting SELECT (id) exposes inherited GRANT UPDATE from role_audit_editor
+PASS denied by MariaDB: conflicting user vs role: active role_auditor DENY overrides direct user GRANT UPDATE (error 1142)
+PASS denied by MariaDB: conflicting user vs role: direct user column DENY overrides active role_employee GRANT (error 1143)
+PASS denied by MariaDB: MariaDB 13.1 column-level DENY UPDATE (username) overrides GRANT (error 1143)
+PASS allowed: REVOKE DENY restores employee UPDATE (username)
+PASS denied by MariaDB: table-level DENY UPDATE propagates downward to mask column GRANT UPDATE (username) (error 1142|1143)
+PASS allowed: schema-wide GRANT SELECT allows user_directory when private tables are denied
+PASS denied by MariaDB: table-level DENY SELECT on app_users overrides schema-wide GRANT SELECT ON auth_project.* (error 1142)
+PASS denied by MariaDB: table-level DENY SELECT on login_audit overrides schema-wide GRANT SELECT ON auth_project.* (error 1142)
+PASS allowed: reader SELECT non-denied columns (id, username) from user_directory
+PASS denied by MariaDB: MariaDB 13.1 column-level DENY blocks SELECT * on user_directory (error 1143)
+PASS denied by MariaDB: MariaDB 13.1 column-level DENY SELECT (email) on view (error 1143)
+PASS allowed: REVOKE DENY restores reader SELECT (email) on view
+PASS denied by MariaDB: routine-level DENY EXECUTE ON PROCEDURE blocks change_own_password (error 1370)
+PASS allowed: admin full base-table access including sensitive columns
+PASS allowed: auditor read access to login_audit
+PASS denied by MariaDB: auditor blocked from user_directory view (error 1142)
+PASS denied by MariaDB: auditor blocked by 13.1 DENY from updating login_audit (error 1142)
+PASS: All fine-grained access control, role inheritance, and conflicting permission tests passed.
