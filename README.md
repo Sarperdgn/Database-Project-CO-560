@@ -644,3 +644,10 @@ This is a Constructor University **CO-560 Database Core** student project:
 - [MariaDB user account management & roles](https://mariadb.com/docs/server/security/user-account-management)
 - [MariaDB authentication plugins](https://mariadb.com/docs/server/reference/plugins/authentication-plugins)
 - [MariaDB Server Audit plugin](https://mariadb.com/docs/server/reference/plugins/mariadb-audit-plugin)
+
+
+## Browser access console
+
+The optional React frontend in [`frontend/`](frontend/README.md) provides a responsive, wide workspace for the real API: user directory and username edits, sample audit records, registration, password changes, a role-policy matrix, read-only live access checks, and an Area 5 evidence guide. After starting the backend above, run `cd frontend && npm install && npm run dev` and open `http://127.0.0.1:5173`. Credentials remain in page memory and MariaDB continues to enforce permissions.
+
+The course guide distinguishes committed database evidence from current API observations and explicitly marks verified database TLS as outstanding. Browser tests (`cd frontend && npm test`, after installing Playwright Chromium) use controlled responses; rerun the existing Docker test harnesses for actual database security verification.

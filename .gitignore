@@ -5,3 +5,6 @@ dist/
 npm-debug.log*
 package-lock.json
 .ci-results/
+frontend/test-results/
+frontend/playwright-report/
+!frontend/package-lock.json
