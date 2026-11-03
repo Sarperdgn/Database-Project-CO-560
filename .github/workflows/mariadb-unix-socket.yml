@@ -39,6 +39,9 @@ jobs:
           test -f database/init/03-unix-socket.sql
           test -f scripts/test-unix-socket-local.sh
 
+      - name: Generate TLS certificates
+        run: ./database/tls/generate-certs.sh
+
       - name: Configure explicit MariaDB Unix-socket authentication
         run: |
           # MariaDB 11.6+ supports explicit mapping to the Linux OS identity.
