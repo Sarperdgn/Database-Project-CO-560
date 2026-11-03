@@ -25,7 +25,7 @@ ENV
 
 socket_query() {
   "${COMPOSE[@]}" exec -T -u project_socket db \
-    mariadb --no-defaults --protocol=socket --user=project_socket \
+    mariadb --no-defaults --protocol=socket --skip-ssl --user=project_socket \
     --skip-password auth_project --batch --skip-column-names -e "$1"
 }
 reject() {
@@ -65,7 +65,7 @@ reject 'socket account cannot elevate role' 1959 socket_query \
 
 reject 'mismatched OS identity' '1045|1698' \
   "${COMPOSE[@]}" exec -T -u nobody db \
-    mariadb --no-defaults --protocol=socket --user=project_socket \
+    mariadb --no-defaults --protocol=socket --skip-ssl --user=project_socket \
     --skip-password auth_project -e 'SELECT 1;'
 
 reject 'TCP passwordless login' '1045|1698' \

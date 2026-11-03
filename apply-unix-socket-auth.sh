@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
 if [[ ! -f docker-compose.yml || ! -f database/security/02-roles.sql.in ]]; then
   echo 'Run this script from the Database-Project-CO-560 repository root.' >&2
   exit 1
 fi
+
 mkdir -p database/init scripts
-cat > database/Dockerfile <<'EOF'
-FROM quay.io/mariadb-foundation/mariadb-devel:13.1
+
+if ! grep -q "project_socket" database/Dockerfile; then
+  cat >> database/Dockerfile <<'EOF'
 
 RUN useradd --system --no-create-home --shell /usr/sbin/nologin project_socket
 EOF
+fi
+
 cat > database/init/03-unix-socket.sql <<'EOF'
 CREATE USER 'project_socket'@'localhost' IDENTIFIED VIA unix_socket;
 GRANT role_readonly TO 'project_socket'@'localhost';
@@ -54,7 +59,7 @@ ENV
 
 socket_query() {
   "${COMPOSE[@]}" exec -T -u project_socket db \
-    mariadb --no-defaults --protocol=socket --user=project_socket \
+    mariadb --no-defaults --protocol=socket --skip-ssl --user=project_socket \
     --skip-password auth_project --batch --skip-column-names -e "$1"
 }
 reject() {
@@ -94,7 +99,7 @@ reject 'socket account cannot elevate role' 1959 socket_query \
 
 reject 'mismatched OS identity' '1045|1698' \
   "${COMPOSE[@]}" exec -T -u nobody db \
-    mariadb --no-defaults --protocol=socket --user=project_socket \
+    mariadb --no-defaults --protocol=socket --skip-ssl --user=project_socket \
     --skip-password auth_project -e 'SELECT 1;'
 
 reject 'TCP passwordless login' '1045|1698' \
