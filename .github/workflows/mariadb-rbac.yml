@@ -42,6 +42,9 @@ jobs:
           npm ci
           npm run build
 
+      - name: Generate TLS certificates
+        run: ./database/tls/generate-certs.sh
+
       - name: Test real MariaDB accounts, roles, GRANT and DENY
         run: |
           mkdir -p .ci-results
