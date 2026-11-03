@@ -36,6 +36,9 @@ jobs:
           docker --version
           docker compose version
 
+      - name: Generate TLS certificates
+        run: ./database/tls/generate-certs.sh
+
       - name: Verify actual Server Audit events and MariaDB error codes
         run: |
           mkdir -p .ci-results
