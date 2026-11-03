@@ -22,8 +22,6 @@ services:
     volumes:
       - mariadb_13_1_data:/var/lib/mysql
       - ./database/init:/docker-entrypoint-initdb.d:ro
-      - ./database/tls/99-tls.cnf:/etc/mysql/conf.d/99-tls.cnf:ro
-      - ./database/tls/certs:/etc/mysql/tls:ro
 
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
