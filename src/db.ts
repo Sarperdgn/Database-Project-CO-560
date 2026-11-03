@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import mysql, { type Connection } from "mysql2/promise";
 import { config } from "./config.js";
 
@@ -12,5 +13,9 @@ export async function connectAs(user: string, password: string): Promise<Connect
     password,
     connectTimeout: 5000,
     multipleStatements: false,
+    ssl: {
+      ca: fs.readFileSync(config.db.sslCa, "utf8"),
+      rejectUnauthorized: true,
+    },
   });
 }

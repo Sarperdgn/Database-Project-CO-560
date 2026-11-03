@@ -1,0 +1,44 @@
+name: MariaDB TLS Security
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  tls-security:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate local environment file
+        run: |
+          cat > .env <<'EOF'
+          MARIADB_ROOT_PASSWORD=ci-root-password
+          MARIADB_DATABASE=auth_project
+          ADMIN_DB_PASSWORD=ci-admin-password
+          EMPLOYEE_DB_PASSWORD=ci-employee-password
+          READONLY_DB_PASSWORD=ci-readonly-password
+          AUDITOR_DB_PASSWORD=ci-auditor-password
+          REGISTRATION_DB_PASSWORD=ci-registration-password
+          EOF
+
+      - name: Run TLS security test suite
+        run: ./scripts/test-tls-local.sh
+
+      - name: Show Docker logs on failure
+        if: failure()
+        run: |
+          docker compose ps || true
+          docker compose logs db || true
+          docker compose logs api || true
+
+      - name: Clean up containers
+        if: always()
+        run: docker compose down -v --remove-orphans

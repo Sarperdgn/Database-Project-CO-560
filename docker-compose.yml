@@ -3,7 +3,9 @@ services:
     build:
       context: .
       dockerfile: database/Dockerfile
+
     restart: unless-stopped
+
     environment:
       MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?Required}
       MARIADB_DATABASE: ${MARIADB_DATABASE:?Required}
@@ -13,20 +15,26 @@ services:
       AUDITOR_DB_PASSWORD: ${AUDITOR_DB_PASSWORD:?Required}
       REGISTRATION_DB_PASSWORD: ${REGISTRATION_DB_PASSWORD:?Required}
       MARIADB_ROOT_HOST: localhost
+
     ports:
       - "127.0.0.1:${DB_PUBLISHED_PORT:-3307}:3306"
+
     volumes:
       - mariadb_13_1_data:/var/lib/mysql
       - ./database/init:/docker-entrypoint-initdb.d:ro
-      - ./database/security:/opt/project-security:ro
+      - ./database/tls/99-tls.cnf:/etc/mysql/conf.d/99-tls.cnf:ro
+      - ./database/tls/certs:/etc/mysql/tls:ro
+
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 2s
       timeout: 5s
       retries: 60
+
   api:
     build: .
     restart: unless-stopped
+
     environment:
       NODE_ENV: development
       PORT: 3000
@@ -34,10 +42,17 @@ services:
       DB_PORT: 3306
       DB_NAME: ${MARIADB_DATABASE:?Required}
       REGISTRATION_DB_PASSWORD: ${REGISTRATION_DB_PASSWORD:?Required}
+      DB_SSL_CA: /etc/project-tls/ca.pem
+
+    volumes:
+      - ./database/tls/certs/ca.pem:/etc/project-tls/ca.pem:ro
+
     ports:
       - "127.0.0.1:${API_PUBLISHED_PORT:-3000}:3000"
+
     depends_on:
       db:
         condition: service_healthy
+
 volumes:
   mariadb_13_1_data:

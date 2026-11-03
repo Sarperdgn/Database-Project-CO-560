@@ -8,3 +8,5 @@ package-lock.json
 frontend/test-results/
 frontend/playwright-report/
 !frontend/package-lock.json
+# Generated TLS certificates and private keys
+database/tls/certs/
