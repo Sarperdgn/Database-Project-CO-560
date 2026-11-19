@@ -15,4 +15,5 @@ test('live proxy authenticates with MariaDB and runs access checks', async ({ pa
   await expect(page.getByText('HTTP 200 · 1 row(s) returned', { exact: true }).first()).toBeVisible();
   await expect(page.locator('.check-row')).toHaveCount(4);
   await expect(page.locator('.check-row').getByText('Error', { exact: true })).toHaveCount(0);
+  await page.screenshot({ path: 'test-results/live-access.png', fullPage: true });
 });

@@ -1,5 +1,20 @@
 services:
+  certificates:
+    build:
+      context: .
+      dockerfile: database/Dockerfile
+    entrypoint: ["sh", "/generate.sh"]
+    volumes:
+      - ./database/tls/generate.sh:/generate.sh:ro
+      - db_certificates:/certs
+      - public_ca:/public
   db:
+    depends_on:
+      certificates:
+        condition: service_completed_successfully
+    networks:
+      default:
+        aliases: [db-invalid]
     build:
       context: .
       dockerfile: database/Dockerfile
@@ -16,6 +31,7 @@ services:
     ports:
       - "127.0.0.1:${DB_PUBLISHED_PORT:-3307}:3306"
     volumes:
+      - db_certificates:/certs:ro
       - mariadb_13_1_data:/var/lib/mysql
       - ./database/init:/docker-entrypoint-initdb.d:ro
       - ./database/security:/opt/project-security:ro
@@ -32,8 +48,16 @@ services:
       PORT: 3000
       DB_HOST: db
       DB_PORT: 3306
+      DB_SSL_CA: /public/ca.pem
       DB_NAME: ${MARIADB_DATABASE:?Required}
       REGISTRATION_DB_PASSWORD: ${REGISTRATION_DB_PASSWORD:?Required}
+    volumes:
+      - public_ca:/public:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
     ports:
       - "127.0.0.1:${API_PUBLISHED_PORT:-3000}:3000"
     depends_on:
@@ -41,3 +65,5 @@ services:
         condition: service_healthy
 volumes:
   mariadb_13_1_data:
+  db_certificates:
+  public_ca:

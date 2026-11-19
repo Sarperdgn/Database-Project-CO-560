@@ -92,7 +92,7 @@ const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
   const errno = (error as { errno?: number }).errno;
   if (errno === 30001) {
     res.status(400).json({ error: "Invalid account credentials" });
-  } else if (errno === 1045 || errno === 1044 || errno === 1698) {
+  } else if (errno === 1045 || errno === 1044 || errno === 1698 || errno === 4151) {
     res.status(401).json({ error: "MariaDB authentication failed" });
   } else if (errno === 1142 || errno === 1143 || errno === 1227 || errno === 1370) {
     res.status(403).json({ error: "MariaDB denied this operation" });

@@ -8,6 +8,7 @@ export async function connectAs(user: string, password: string): Promise<Connect
     host: config.db.host,
     port: config.db.port,
     database: config.db.name,
+    ssl: config.db.ssl,
     user,
     password,
     connectTimeout: 5000,

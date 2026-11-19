@@ -1,0 +1,589 @@
+WARNING: DOCKER_INSECURE_NO_IPTABLES_RAW is set
+
+=== rbac ===
+#1 [internal] load local bake definitions
+#1 reading from stdin 1.15kB done
+#1 DONE 0.0s
+
+#2 [api internal] load build definition from Dockerfile
+#2 transferring dockerfile: 387B done
+#2 DONE 0.0s
+
+#3 [certificates internal] load build definition from Dockerfile
+#3 transferring dockerfile: 333B done
+#3 DONE 0.0s
+
+#4 [db internal] load metadata for quay.io/mariadb-foundation/mariadb-devel:13.1
+#4 ...
+
+#5 [api internal] load metadata for docker.io/library/node:22-bookworm-slim
+#5 DONE 0.6s
+
+#6 [db internal] load .dockerignore
+#6 transferring context: 105B done
+#6 DONE 0.0s
+
+#7 [api build 1/7] FROM docker.io/library/node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee
+#7 resolve docker.io/library/node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee done
+#7 DONE 0.0s
+
+#8 [api internal] load build context
+#8 transferring context: 4.89kB done
+#8 DONE 0.0s
+
+#9 [api build 2/7] WORKDIR /app
+#9 CACHED
+
+#10 [api build 4/7] RUN npm ci
+#10 CACHED
+
+#11 [api build 3/7] COPY package*.json ./
+#11 CACHED
+
+#12 [api build 5/7] COPY tsconfig.json ./
+#12 CACHED
+
+#13 [api build 6/7] COPY src ./src
+#13 DONE 0.0s
+
+#4 [db internal] load metadata for quay.io/mariadb-foundation/mariadb-devel:13.1
+#4 DONE 0.6s
+
+#14 [db internal] load build context
+#14 transferring context: 105B done
+#14 DONE 0.0s
+
+#15 [certificates 1/4] FROM quay.io/mariadb-foundation/mariadb-devel:13.1@sha256:7723a49e7bec849c0de7b8cb74b2a30dfb1ac4706693d537ceccd0649ed66da5
+#15 resolve quay.io/mariadb-foundation/mariadb-devel:13.1@sha256:7723a49e7bec849c0de7b8cb74b2a30dfb1ac4706693d537ceccd0649ed66da5 done
+#15 DONE 0.0s
+
+#16 [certificates 2/4] RUN useradd --system --no-create-home --shell /usr/sbin/nologin project_socket
+#16 CACHED
+
+#17 [certificates 3/4] RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+#17 CACHED
+
+#18 [certificates 4/4] COPY database/tls/99-tls.cnf /etc/mysql/conf.d/99-tls.cnf
+#18 CACHED
+
+#19 [certificates] exporting to image
+#19 exporting layers done
+#19 exporting manifest sha256:5d65b947b0167f87ca6560eb96b87088fae9fa5153675bd2d79eaf25e0b4c31d done
+#19 exporting config sha256:f75dcdd1be68b72505e4558911f47a8fca8516b2e980511a37094bccbd59efe5 done
+#19 exporting attestation manifest sha256:0e808e06a4dbc3ff3c0a73d04f69f330cc8730810e8eb2f83bfcea63af265b6a done
+#19 exporting manifest list sha256:63d3d5bd63c487a5f9e4227f314787e0cce608b2daf0d80be4d5da10bd2380db done
+#19 naming to docker.io/library/co560-rbac-1795039562-91388-certificates:latest done
+#19 unpacking to docker.io/library/co560-rbac-1795039562-91388-certificates:latest done
+#19 DONE 0.1s
+
+#20 [db] exporting to image
+#20 exporting layers done
+#20 exporting manifest sha256:5d65b947b0167f87ca6560eb96b87088fae9fa5153675bd2d79eaf25e0b4c31d done
+#20 exporting config sha256:f75dcdd1be68b72505e4558911f47a8fca8516b2e980511a37094bccbd59efe5 done
+#20 exporting attestation manifest sha256:87a6cb93fe5466c81ba828f34c29aa189fdc0af5c56b8bc46b146a6b7ea2bc13 done
+#20 exporting manifest list sha256:0489ddf92b03f7e066a19dd7847f21ed6d45c2c23192de818eab1b994e48b78e done
+#20 naming to docker.io/library/co560-rbac-1795039562-91388-db:latest done
+#20 unpacking to docker.io/library/co560-rbac-1795039562-91388-db:latest done
+#20 DONE 0.1s
+
+#21 [certificates] resolving provenance for metadata file
+#21 DONE 0.0s
+
+#22 [db] resolving provenance for metadata file
+#22 DONE 0.0s
+
+#23 [api build 7/7] RUN npm run build
+#23 0.149 
+#23 0.149 > mariadb-auth-module@1.0.0 build
+#23 0.149 > tsc
+#23 0.149 
+#23 DONE 0.9s
+
+#24 [api runtime 4/5] RUN npm ci --omit=dev
+#24 CACHED
+
+#25 [api runtime 5/5] COPY --from=build /app/dist ./dist
+#25 DONE 0.0s
+
+#26 [api] exporting to image
+#26 exporting layers 0.0s done
+#26 exporting manifest sha256:4b20bea07dfd16025f08d8a96d91dafd01b30cb2b251115b06b467f1531a16ec done
+#26 exporting config sha256:f3b627766e1c83ff9e01fb34369b325288f0a751d27bae42e287c4adca74ce32 done
+#26 exporting attestation manifest sha256:0c636f678fbecce678446b3a123ff2ef39e9559f2e066f4d4ea7190310975b9f done
+#26 exporting manifest list sha256:66449b42a9d7845e8c6af6956a41f6b5e00cbb4b5dc8a729fcf06293c71f4c4c done
+#26 naming to docker.io/library/co560-rbac-1795039562-91388-api:latest done
+#26 unpacking to docker.io/library/co560-rbac-1795039562-91388-api:latest done
+#26 DONE 0.1s
+
+#27 [api] resolving provenance for metadata file
+#27 DONE 0.0s
+ api  Built
+ certificates  Built
+ db  Built
+ Network co560-rbac-1795039562-91388_default  Creating
+ Network co560-rbac-1795039562-91388_default  Created
+ Volume "co560-rbac-1795039562-91388_public_ca"  Creating
+ Volume "co560-rbac-1795039562-91388_public_ca"  Created
+ Volume "co560-rbac-1795039562-91388_mariadb_13_1_data"  Creating
+ Volume "co560-rbac-1795039562-91388_mariadb_13_1_data"  Created
+ Volume "co560-rbac-1795039562-91388_db_certificates"  Creating
+ Volume "co560-rbac-1795039562-91388_db_certificates"  Created
+ Container co560-rbac-1795039562-91388-certificates-1  Creating
+ Container co560-rbac-1795039562-91388-certificates-1  Created
+ Container co560-rbac-1795039562-91388-db-1  Creating
+ Container co560-rbac-1795039562-91388-db-1  Created
+ Container co560-rbac-1795039562-91388-api-1  Creating
+ Container co560-rbac-1795039562-91388-api-1  Created
+ Container co560-rbac-1795039562-91388-certificates-1  Starting
+ Container co560-rbac-1795039562-91388-certificates-1  Started
+ Container co560-rbac-1795039562-91388-certificates-1  Waiting
+ Container co560-rbac-1795039562-91388-certificates-1  Exited
+ Container co560-rbac-1795039562-91388-db-1  Starting
+ Container co560-rbac-1795039562-91388-db-1  Started
+ Container co560-rbac-1795039562-91388-db-1  Waiting
+ Container co560-rbac-1795039562-91388-db-1  Healthy
+ Container co560-rbac-1795039562-91388-api-1  Starting
+ Container co560-rbac-1795039562-91388-api-1  Started
+ Container co560-rbac-1795039562-91388-certificates-1  Waiting
+ Container co560-rbac-1795039562-91388-db-1  Waiting
+ Container co560-rbac-1795039562-91388-api-1  Waiting
+ Container co560-rbac-1795039562-91388-certificates-1  Exited
+ Container co560-rbac-1795039562-91388-db-1  Healthy
+ Container co560-rbac-1795039562-91388-api-1  Healthy
+MariaDB version: 13.1.2-MariaDB-ubu2604
+PASS allowed: admin table DDL
+PASS allowed: employee public view
+PASS allowed: employee username update
+PASS allowed: reader public view
+PASS allowed: auditor audit read
+PASS denied by MariaDB: reader update
+PASS denied by MariaDB: reader password hashes
+PASS denied by MariaDB: reader audit data
+PASS denied by MariaDB: employee password hashes
+PASS denied by MariaDB: employee password modification
+PASS denied by MariaDB: employee delete
+PASS denied by MariaDB: auditor audit modification
+PASS denied by MariaDB: auditor directory
+PASS denied by MariaDB: reader DDL
+PASS denied by MariaDB: reader global account creation
+PASS denied by MariaDB: reader role escalation
+PASS denied by MariaDB: no direct privileges after disabling role
+PASS denied by MariaDB: wrong password
+PASS denied by MariaDB: revoked reader grant
+PASS allowed: restored reader grant
+PASS denied by MariaDB: DENY overrides later UPDATE grant
+PASS denied by MariaDB: DENY overrides later DELETE grant
+PASS allowed: REVOKE DENY exposes existing UPDATE grant
+PASS allowed: REVOKE DENY exposes existing DELETE grant
+PASS denied by MariaDB: restored audit protection
+PASS denied by MariaDB: registrar direct account creation
+PASS denied by MariaDB: registrar data access
+PASS denied by MariaDB: registrar invalid username
+PASS denied by MariaDB: registrar weak password
+PASS denied by MariaDB: reader provisioning
+PASS: missing and malformed authentication rejected
+PASS: API uses caller identities and preserves database denials
+PASS: registration creates restricted MariaDB accounts; password changes affect only the caller
+PASS TLS: application verifies CA and hostname; cipher TLS_AES_256_GCM_SHA384
+PASS TLS rejected: untrusted CA
+PASS TLS rejected: wrong hostname on trusted certificate
+PASS TLS rejected: plaintext TCP
+PASS TLS rejected: wrong password over verified TLS
+All TLS tests passed.
+All database, API RBAC and TLS tests passed.
+
+=== fine-grained-security ===
+Starting isolated MariaDB 13.1 stack co560-omer-1795039588-91670 (disposable volume)...
+#1 [internal] load local bake definitions
+#1 reading from stdin 811B done
+#1 DONE 0.0s
+
+#2 [db internal] load build definition from Dockerfile
+#2 transferring dockerfile: 333B done
+#2 DONE 0.0s
+
+#3 [certificates internal] load metadata for quay.io/mariadb-foundation/mariadb-devel:13.1
+#3 DONE 0.2s
+
+#4 [certificates internal] load .dockerignore
+#4 transferring context: 105B done
+#4 DONE 0.0s
+
+#5 [db internal] load build context
+#5 transferring context: 278B done
+#5 DONE 0.0s
+
+#6 [db 1/4] FROM quay.io/mariadb-foundation/mariadb-devel:13.1@sha256:7723a49e7bec849c0de7b8cb74b2a30dfb1ac4706693d537ceccd0649ed66da5
+#6 resolve quay.io/mariadb-foundation/mariadb-devel:13.1@sha256:7723a49e7bec849c0de7b8cb74b2a30dfb1ac4706693d537ceccd0649ed66da5 done
+#6 DONE 0.0s
+
+#7 [db 3/4] RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+#7 CACHED
+
+#8 [db 2/4] RUN useradd --system --no-create-home --shell /usr/sbin/nologin project_socket
+#8 CACHED
+
+#9 [db 4/4] COPY database/tls/99-tls.cnf /etc/mysql/conf.d/99-tls.cnf
+#9 CACHED
+
+#10 [certificates] exporting to image
+#10 exporting layers done
+#10 exporting manifest sha256:5d65b947b0167f87ca6560eb96b87088fae9fa5153675bd2d79eaf25e0b4c31d done
+#10 exporting config sha256:f75dcdd1be68b72505e4558911f47a8fca8516b2e980511a37094bccbd59efe5 done
+#10 exporting attestation manifest sha256:547039475dd3b0aa076dcabbed3ef16698faaaebbdb7bce3e58c85328ae75da2 0.0s done
+#10 exporting manifest list sha256:af0a63526b9d00d4202a6b32154356614c18c32422157d1e7bbb938d7ad6e99f done
+#10 naming to docker.io/library/co560-omer-1795039588-91670-certificates:latest done
+#10 unpacking to docker.io/library/co560-omer-1795039588-91670-certificates:latest done
+#10 DONE 0.0s
+
+#11 [db] exporting to image
+#11 exporting layers done
+#11 exporting manifest sha256:5d65b947b0167f87ca6560eb96b87088fae9fa5153675bd2d79eaf25e0b4c31d done
+#11 exporting config sha256:f75dcdd1be68b72505e4558911f47a8fca8516b2e980511a37094bccbd59efe5 done
+#11 exporting attestation manifest sha256:5f458f1ad511bb0ed001680c7c56a73324fafad155b33628b2a97e5adfdc0852 0.0s done
+#11 exporting manifest list sha256:e31815c788b55c3fb24ab7e04cc4740e29497732ca2b59e3bf5393f903e81b6b done
+#11 naming to docker.io/library/co560-omer-1795039588-91670-db:latest done
+#11 unpacking to docker.io/library/co560-omer-1795039588-91670-db:latest done
+#11 DONE 0.1s
+
+#12 [certificates] resolving provenance for metadata file
+#12 DONE 0.0s
+
+#13 [db] resolving provenance for metadata file
+#13 DONE 0.0s
+ certificates  Built
+ db  Built
+ Network co560-omer-1795039588-91670_default  Creating
+ Network co560-omer-1795039588-91670_default  Created
+ Volume "co560-omer-1795039588-91670_db_certificates"  Creating
+ Volume "co560-omer-1795039588-91670_db_certificates"  Created
+ Volume "co560-omer-1795039588-91670_public_ca"  Creating
+ Volume "co560-omer-1795039588-91670_public_ca"  Created
+ Volume "co560-omer-1795039588-91670_mariadb_13_1_data"  Creating
+ Volume "co560-omer-1795039588-91670_mariadb_13_1_data"  Created
+ Container co560-omer-1795039588-91670-certificates-1  Creating
+ Container co560-omer-1795039588-91670-certificates-1  Created
+ Container co560-omer-1795039588-91670-db-1  Creating
+ Container co560-omer-1795039588-91670-db-1  Created
+ Container co560-omer-1795039588-91670-certificates-1  Starting
+ Container co560-omer-1795039588-91670-certificates-1  Started
+ Container co560-omer-1795039588-91670-certificates-1  Waiting
+ Container co560-omer-1795039588-91670-certificates-1  Exited
+ Container co560-omer-1795039588-91670-db-1  Starting
+ Container co560-omer-1795039588-91670-db-1  Started
+ Container co560-omer-1795039588-91670-certificates-1  Waiting
+ Container co560-omer-1795039588-91670-db-1  Waiting
+ Container co560-omer-1795039588-91670-certificates-1  Exited
+ Container co560-omer-1795039588-91670-db-1  Healthy
+PASS MariaDB version verified: 13.1.2-MariaDB-ubu2604
+PASS mysql.global_priv JSON $.denies verified for role_auditor
+PASS restricted view schema: user_directory exposes only (id,email,username) with SQL SECURITY DEFINER
+PASS allowed: reader SELECT on restricted view user_directory
+PASS denied by MariaDB: reader direct SELECT on base table app_users (error 1142)
+PASS denied by MariaDB: reader direct SELECT of password_hash on app_users (error 1142)
+PASS denied by MariaDB: reader direct SELECT of token_version on app_users (error 1142)
+PASS denied by MariaDB: reader direct SELECT on login_audit (error 1142)
+PASS allowed: employee column-level SELECT (id) on app_users
+PASS allowed: employee column-level UPDATE (username) on app_users
+PASS denied by MariaDB: employee unauthorized column SELECT (password_hash) (error 1143)
+PASS denied by MariaDB: employee unauthorized column SELECT (email) from base table (error 1143)
+PASS denied by MariaDB: employee unauthorized column SELECT (failed_login_attempts) (error 1143)
+PASS denied by MariaDB: employee unauthorized column SELECT (locked_until) (error 1143)
+PASS denied by MariaDB: employee unauthorized column UPDATE (password_hash) (error 1143)
+PASS denied by MariaDB: employee unauthorized column UPDATE (is_active) (error 1143)
+PASS denied by MariaDB: employee unauthorized column UPDATE (token_version) (error 1143)
+PASS denied by MariaDB: SQL SECURITY INVOKER view fails when caller lacks base-table privilege (error 1356)
+PASS allowed: role inheritance: composite role_support_lead grants employee column UPDATE to reader
+PASS denied by MariaDB: role inheritance: composite role_support_lead still blocks password_hash column (error 1143)
+PASS allowed: conflicting inherited roles: SELECT on login_audit still allowed via role_auditor
+PASS denied by MariaDB: conflicting inherited roles: role_auditor DENY overrides role_audit_editor GRANT UPDATE (error 1142)
+PASS denied by MariaDB: conflicting inherited roles: role_auditor DENY overrides role_audit_editor GRANT DELETE (error 1142)
+PASS denied by MariaDB: UPDATE with WHERE id = ? fails with 1143 when SELECT (id) is absent after detaching role_auditor (error 1143)
+PASS allowed: detaching role with DENY + granting SELECT (id) exposes inherited GRANT UPDATE from role_audit_editor
+PASS denied by MariaDB: conflicting user vs role: active role_auditor DENY overrides direct user GRANT UPDATE (error 1142)
+PASS denied by MariaDB: conflicting user vs role: direct user column DENY overrides active role_employee GRANT (error 1143)
+PASS denied by MariaDB: MariaDB 13.1 column-level DENY UPDATE (username) overrides GRANT (error 1143)
+PASS allowed: REVOKE DENY restores employee UPDATE (username)
+PASS denied by MariaDB: table-level DENY UPDATE propagates downward to mask column GRANT UPDATE (username) (error 1142|1143)
+PASS allowed: schema-wide GRANT SELECT allows user_directory when private tables are denied
+PASS denied by MariaDB: table-level DENY SELECT on app_users overrides schema-wide GRANT SELECT ON auth_project.* (error 1142)
+PASS denied by MariaDB: table-level DENY SELECT on login_audit overrides schema-wide GRANT SELECT ON auth_project.* (error 1142)
+PASS allowed: reader SELECT non-denied columns (id, username) from user_directory
+PASS denied by MariaDB: MariaDB 13.1 column-level DENY blocks SELECT * on user_directory (error 1143)
+PASS denied by MariaDB: MariaDB 13.1 column-level DENY SELECT (email) on view (error 1143)
+PASS allowed: REVOKE DENY restores reader SELECT (email) on view
+PASS denied by MariaDB: routine-level DENY EXECUTE ON PROCEDURE blocks change_own_password (error 1370)
+PASS allowed: admin full base-table access including sensitive columns
+PASS allowed: auditor read access to login_audit
+PASS denied by MariaDB: auditor blocked from user_directory view (error 1142)
+PASS denied by MariaDB: auditor blocked by 13.1 DENY from updating login_audit (error 1142)
+PASS: All fine-grained access control, role inheritance, and conflicting permission tests passed.
+
+=== security-audit ===
+Starting isolated project co560-vedant-1795039603-92104 (temporary volume destroyed on exit)
+#1 [internal] load local bake definitions
+#1 reading from stdin 815B done
+#1 DONE 0.0s
+
+#2 [certificates internal] load build definition from Dockerfile
+#2 transferring dockerfile: 333B done
+#2 DONE 0.0s
+
+#3 [certificates internal] load metadata for quay.io/mariadb-foundation/mariadb-devel:13.1
+#3 DONE 0.2s
+
+#4 [db internal] load .dockerignore
+#4 transferring context: 105B done
+#4 DONE 0.0s
+
+#5 [certificates internal] load build context
+#5 transferring context: 105B done
+#5 DONE 0.0s
+
+#6 [certificates 1/4] FROM quay.io/mariadb-foundation/mariadb-devel:13.1@sha256:7723a49e7bec849c0de7b8cb74b2a30dfb1ac4706693d537ceccd0649ed66da5
+#6 resolve quay.io/mariadb-foundation/mariadb-devel:13.1@sha256:7723a49e7bec849c0de7b8cb74b2a30dfb1ac4706693d537ceccd0649ed66da5 0.0s done
+#6 DONE 0.0s
+
+#7 [certificates 2/4] RUN useradd --system --no-create-home --shell /usr/sbin/nologin project_socket
+#7 CACHED
+
+#8 [certificates 3/4] RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+#8 CACHED
+
+#9 [certificates 4/4] COPY database/tls/99-tls.cnf /etc/mysql/conf.d/99-tls.cnf
+#9 CACHED
+
+#10 [db] exporting to image
+#10 exporting layers done
+#10 exporting manifest sha256:5d65b947b0167f87ca6560eb96b87088fae9fa5153675bd2d79eaf25e0b4c31d done
+#10 exporting config sha256:f75dcdd1be68b72505e4558911f47a8fca8516b2e980511a37094bccbd59efe5 done
+#10 exporting attestation manifest sha256:d6a72a5c3bf086cbd8b13595c2e22c3682bbdc80f5b1988dd0b52bc4a4dd0274 0.0s done
+#10 exporting manifest list sha256:39754455f49a3bf782f331191e8f4d3f48d220bb64634f6d9704dac57df3d247 done
+#10 naming to docker.io/library/co560-vedant-1795039603-92104-db:latest done
+#10 unpacking to docker.io/library/co560-vedant-1795039603-92104-db:latest done
+#10 DONE 0.1s
+
+#11 [certificates] exporting to image
+#11 exporting layers done
+#11 exporting manifest sha256:5d65b947b0167f87ca6560eb96b87088fae9fa5153675bd2d79eaf25e0b4c31d done
+#11 exporting config sha256:f75dcdd1be68b72505e4558911f47a8fca8516b2e980511a37094bccbd59efe5 done
+#11 exporting attestation manifest sha256:b1f00a49e5e3e09713a70c33b13dfe03cfded942a33d6c9dda3ca5b8c9f8ea47 0.0s done
+#11 exporting manifest list sha256:a0e28bc9200d1848171e82e94a5c76afaa4bbc1397d2ca87b11b8ee232ca8b0d done
+#11 naming to docker.io/library/co560-vedant-1795039603-92104-certificates:latest done
+#11 unpacking to docker.io/library/co560-vedant-1795039603-92104-certificates:latest done
+#11 DONE 0.1s
+
+#12 [db] resolving provenance for metadata file
+#12 DONE 0.0s
+
+#13 [certificates] resolving provenance for metadata file
+#13 DONE 0.0s
+ certificates  Built
+ db  Built
+ Network co560-vedant-1795039603-92104_default  Creating
+ Network co560-vedant-1795039603-92104_default  Created
+ Volume "co560-vedant-1795039603-92104_public_ca"  Creating
+ Volume "co560-vedant-1795039603-92104_public_ca"  Created
+ Volume "co560-vedant-1795039603-92104_mariadb_13_1_data"  Creating
+ Volume "co560-vedant-1795039603-92104_mariadb_13_1_data"  Created
+ Volume "co560-vedant-1795039603-92104_db_certificates"  Creating
+ Volume "co560-vedant-1795039603-92104_db_certificates"  Created
+ Container co560-vedant-1795039603-92104-certificates-1  Creating
+ Container co560-vedant-1795039603-92104-certificates-1  Created
+ Container co560-vedant-1795039603-92104-db-1  Creating
+ Container co560-vedant-1795039603-92104-db-1  Created
+ Container co560-vedant-1795039603-92104-certificates-1  Starting
+ Container co560-vedant-1795039603-92104-certificates-1  Started
+ Container co560-vedant-1795039603-92104-certificates-1  Waiting
+ Container co560-vedant-1795039603-92104-certificates-1  Exited
+ Container co560-vedant-1795039603-92104-db-1  Starting
+ Container co560-vedant-1795039603-92104-db-1  Started
+ Container co560-vedant-1795039603-92104-certificates-1  Waiting
+ Container co560-vedant-1795039603-92104-db-1  Waiting
+ Container co560-vedant-1795039603-92104-certificates-1  Exited
+ Container co560-vedant-1795039603-92104-db-1  Healthy
+PASS MariaDB 13.1.2-MariaDB-ubu2604, server_audit ACTIVE, logging=ON
+PASS allowed: reader public view
+PASS blocked by MariaDB: reader bad password (error 1045)
+PASS blocked by MariaDB: reader secret table access (error 1142)
+PASS blocked by MariaDB: reader unwanted write (error 1142|1143)
+PASS blocked by MariaDB: reader role escalation (error 1959)
+PASS allowed: employee allowed public read
+PASS blocked by MariaDB: revoked reader privilege (error 1044|1142)
+PASS allowed: reader privilege restored
+PASS blocked by MariaDB: disabled employee login (error 4151)
+PASS allowed: employee account unlocked
+PASS blocked by MariaDB: DENY overrides added UPDATE grant (error 1142)
+PASS allowed: REVOKE DENY exposes granted UPDATE
+PASS blocked by MariaDB: DENY policy restored (error 1142)
+PASS audit record: reader successful login
+PASS audit record: reader incorrect password
+PASS audit record: permitted public read
+PASS audit record: blocked private data
+PASS audit record: blocked role escalation
+PASS audit record: revoked privilege blocked
+PASS audit record: locked employee rejected
+PASS audit record: DENY defeats later GRANT
+PASS audit record: REVOKE DENY permits grant
+PASS: all audit assertions verified against 85 log records
+PASS: Vedant security audit test suite passed in disposable Compose stack.
+
+=== unix-socket ===
+#1 [internal] load local bake definitions
+#1 reading from stdin 1.16kB done
+#1 DONE 0.0s
+
+#2 [api internal] load build definition from Dockerfile
+#2 transferring dockerfile: 387B done
+#2 DONE 0.0s
+
+#3 [db internal] load build definition from Dockerfile
+#3 transferring dockerfile: 333B done
+#3 DONE 0.0s
+
+#4 [certificates internal] load metadata for quay.io/mariadb-foundation/mariadb-devel:13.1
+#4 DONE 0.2s
+
+#5 [certificates internal] load .dockerignore
+#5 transferring context: 105B done
+#5 DONE 0.0s
+
+#6 [certificates internal] load build context
+#6 transferring context: 105B done
+#6 DONE 0.0s
+
+#7 [certificates 1/4] FROM quay.io/mariadb-foundation/mariadb-devel:13.1@sha256:7723a49e7bec849c0de7b8cb74b2a30dfb1ac4706693d537ceccd0649ed66da5
+#7 resolve quay.io/mariadb-foundation/mariadb-devel:13.1@sha256:7723a49e7bec849c0de7b8cb74b2a30dfb1ac4706693d537ceccd0649ed66da5 0.0s done
+#7 DONE 0.0s
+
+#8 [certificates 3/4] RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+#8 CACHED
+
+#9 [certificates 2/4] RUN useradd --system --no-create-home --shell /usr/sbin/nologin project_socket
+#9 CACHED
+
+#10 [certificates 4/4] COPY database/tls/99-tls.cnf /etc/mysql/conf.d/99-tls.cnf
+#10 CACHED
+
+#11 [db] exporting to image
+#11 exporting layers done
+#11 exporting manifest sha256:5d65b947b0167f87ca6560eb96b87088fae9fa5153675bd2d79eaf25e0b4c31d done
+#11 exporting config sha256:f75dcdd1be68b72505e4558911f47a8fca8516b2e980511a37094bccbd59efe5 done
+#11 exporting attestation manifest sha256:c7c53c7f94c5545507a0587c0a6ba6de9307df48fe46c705dab1693172d555b7 0.0s done
+#11 exporting manifest list sha256:dac4347845c678ba832d4c6f0422a889f2a96089969946452ae9bcabc08267c8 done
+#11 naming to docker.io/library/co560-socket-1795039613-92306-db:latest done
+#11 unpacking to docker.io/library/co560-socket-1795039613-92306-db:latest done
+#11 DONE 0.1s
+
+#12 [certificates] exporting to image
+#12 exporting layers done
+#12 exporting manifest sha256:5d65b947b0167f87ca6560eb96b87088fae9fa5153675bd2d79eaf25e0b4c31d done
+#12 exporting config sha256:f75dcdd1be68b72505e4558911f47a8fca8516b2e980511a37094bccbd59efe5 done
+#12 exporting attestation manifest sha256:b37adcaff66c9be66754d52b168ddb5649ceed92d01432fa73f18105f7f906ab 0.0s done
+#12 exporting manifest list sha256:59ca78a129bc75d1b76b5db08610c4196b0277dfabf465eca85275de0c77a50c done
+#12 naming to docker.io/library/co560-socket-1795039613-92306-certificates:latest done
+#12 unpacking to docker.io/library/co560-socket-1795039613-92306-certificates:latest done
+#12 DONE 0.1s
+
+#13 [certificates] resolving provenance for metadata file
+#13 DONE 0.0s
+
+#14 [db] resolving provenance for metadata file
+#14 DONE 0.0s
+
+#15 [api internal] load metadata for docker.io/library/node:22-bookworm-slim
+#15 DONE 0.5s
+
+#5 [api internal] load .dockerignore
+#5 CACHED
+
+#16 [api internal] load build context
+#16 DONE 0.0s
+
+#17 [api build 1/7] FROM docker.io/library/node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee
+#17 resolve docker.io/library/node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee done
+#17 DONE 0.0s
+
+#16 [api internal] load build context
+#16 transferring context: 70.48kB done
+#16 DONE 0.0s
+
+#18 [api build 5/7] COPY tsconfig.json ./
+#18 CACHED
+
+#19 [api build 6/7] COPY src ./src
+#19 CACHED
+
+#20 [api build 7/7] RUN npm run build
+#20 CACHED
+
+#21 [api build 3/7] COPY package*.json ./
+#21 CACHED
+
+#22 [api build 4/7] RUN npm ci
+#22 CACHED
+
+#23 [api build 2/7] WORKDIR /app
+#23 CACHED
+
+#24 [api runtime 4/5] RUN npm ci --omit=dev
+#24 CACHED
+
+#25 [api runtime 5/5] COPY --from=build /app/dist ./dist
+#25 CACHED
+
+#26 [api] exporting to image
+#26 exporting layers done
+#26 exporting manifest sha256:4b20bea07dfd16025f08d8a96d91dafd01b30cb2b251115b06b467f1531a16ec done
+#26 exporting config sha256:f3b627766e1c83ff9e01fb34369b325288f0a751d27bae42e287c4adca74ce32 done
+#26 exporting attestation manifest sha256:34939d1ee9225038949ab54467973ff5ce19b07a556bdd9fa03427307f68434a done
+#26 exporting manifest list sha256:bfaf90f56dbb94a62c18b8015ad980d54f0d58f4504eba0613a9acd7c36ab0b3 done
+#26 naming to docker.io/library/co560-socket-1795039613-92306-api:latest done
+#26 unpacking to docker.io/library/co560-socket-1795039613-92306-api:latest done
+#26 DONE 0.0s
+
+#27 [api] resolving provenance for metadata file
+#27 DONE 0.0s
+ api  Built
+ certificates  Built
+ db  Built
+ Network co560-socket-1795039613-92306_default  Creating
+ Network co560-socket-1795039613-92306_default  Created
+ Volume "co560-socket-1795039613-92306_public_ca"  Creating
+ Volume "co560-socket-1795039613-92306_public_ca"  Created
+ Volume "co560-socket-1795039613-92306_mariadb_13_1_data"  Creating
+ Volume "co560-socket-1795039613-92306_mariadb_13_1_data"  Created
+ Volume "co560-socket-1795039613-92306_db_certificates"  Creating
+ Volume "co560-socket-1795039613-92306_db_certificates"  Created
+ Container co560-socket-1795039613-92306-certificates-1  Creating
+ Container co560-socket-1795039613-92306-certificates-1  Created
+ Container co560-socket-1795039613-92306-db-1  Creating
+ Container co560-socket-1795039613-92306-db-1  Created
+ Container co560-socket-1795039613-92306-api-1  Creating
+ Container co560-socket-1795039613-92306-api-1  Created
+ Container co560-socket-1795039613-92306-certificates-1  Starting
+ Container co560-socket-1795039613-92306-certificates-1  Started
+ Container co560-socket-1795039613-92306-certificates-1  Waiting
+ Container co560-socket-1795039613-92306-certificates-1  Exited
+ Container co560-socket-1795039613-92306-db-1  Starting
+ Container co560-socket-1795039613-92306-db-1  Started
+ Container co560-socket-1795039613-92306-db-1  Waiting
+ Container co560-socket-1795039613-92306-db-1  Healthy
+ Container co560-socket-1795039613-92306-api-1  Starting
+ Container co560-socket-1795039613-92306-api-1  Started
+ Container co560-socket-1795039613-92306-certificates-1  Waiting
+ Container co560-socket-1795039613-92306-db-1  Waiting
+ Container co560-socket-1795039613-92306-api-1  Waiting
+ Container co560-socket-1795039613-92306-certificates-1  Exited
+ Container co560-socket-1795039613-92306-db-1  Healthy
+ Container co560-socket-1795039613-92306-api-1  Healthy
+PASS: passwordless Unix-socket login and read-only role, directory SELECT
+PASS (MariaDB rejected): socket account cannot update rows
+PASS (MariaDB rejected): socket account cannot access password hashes
+PASS (MariaDB rejected): socket account cannot read audit data
+PASS (MariaDB rejected): socket account cannot elevate role
+PASS (MariaDB rejected): mismatched OS identity
+PASS (MariaDB rejected): TCP passwordless login
+All Unix-socket authentication tests passed.
+
+All MariaDB security demonstrations passed.

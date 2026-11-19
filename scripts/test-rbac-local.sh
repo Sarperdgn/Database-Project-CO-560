@@ -25,7 +25,7 @@ ENV
 sql() {
   local account="$1" password="$2" query="$3"
   "${COMPOSE[@]}" exec -T -e MYSQL_PWD="$password" db \
-    mariadb --protocol=tcp -h127.0.0.1 -u"$account" auth_project -Nse "$query"
+    mariadb --ssl-ca=/certs/ca.pem --ssl-verify-server-cert --protocol=tcp -h127.0.0.1 -u"$account" auth_project -Nse "$query"
 }
 admin() { sql project_admin local-test-admin-password "$1"; }
 employee() { sql project_employee local-test-employee-password "$1"; }
@@ -94,4 +94,19 @@ deny 'registrar invalid username' 30001 sql project_registrar local-test-registr
 deny 'registrar weak password' 30001 sql project_registrar local-test-registration-password "CALL register_account('signup_short', 'short');"
 deny 'reader provisioning' 1370 reader "CALL register_account('signup_forbidden', 'valid-long-password');"
 "${COMPOSE[@]}" exec -T api node --input-type=module < scripts/test-api.mjs
-echo 'All database and API RBAC tests passed.'
+"${COMPOSE[@]}" exec -T api node --input-type=module < scripts/test-tls.mjs
+root_sql "ALTER USER 'project_reader'@'%' ACCOUNT LOCK;"
+"${COMPOSE[@]}" exec -T api node --input-type=module <<'JS'
+import assert from 'node:assert/strict';
+const authorization = 'Basic ' + Buffer.from('project_reader:local-test-readonly-password').toString('base64');
+const response = await fetch('http://127.0.0.1:3000/api/me', {headers: {authorization}});
+assert.equal(response.status, 401, 'Locked account must be rejected as unauthenticated');
+console.log('PASS: locked MariaDB account rejected by API with HTTP 401');
+JS
+root_sql "ALTER USER 'project_reader'@'%' ACCOUNT UNLOCK;"
+if [[ "${RUN_BROWSER_TESTS:-0}" == 1 ]]; then
+  api_address="$("${COMPOSE[@]}" port api 3000)"
+  API_PROXY_TARGET="http://$api_address" CO560_USERNAME=project_reader \
+    CO560_PASSWORD=local-test-readonly-password npm --prefix frontend test -- live-api.spec.ts
+fi
+echo 'All database, API RBAC and TLS tests passed.'

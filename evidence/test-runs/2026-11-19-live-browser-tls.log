@@ -1,0 +1,206 @@
+#1 [internal] load local bake definitions
+#1 reading from stdin 1.15kB done
+#1 DONE 0.0s
+
+#2 [api internal] load build definition from Dockerfile
+#2 transferring dockerfile: 531B done
+#2 DONE 0.0s
+
+#3 [certificates internal] load build definition from Dockerfile
+#3 transferring dockerfile: 405B done
+#3 DONE 0.0s
+
+#4 [api internal] load metadata for docker.io/library/node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee
+#4 DONE 0.0s
+
+#5 [certificates internal] load metadata for quay.io/mariadb-foundation/mariadb-devel:13.1@sha256:7723a49e7bec849c0de7b8cb74b2a30dfb1ac4706693d537ceccd0649ed66da5
+#5 DONE 0.0s
+
+#6 [api internal] load .dockerignore
+#6 transferring context: 105B done
+#6 DONE 0.0s
+
+#7 [db internal] load build context
+#7 transferring context: 278B done
+#7 DONE 0.0s
+
+#8 [db 1/4] FROM quay.io/mariadb-foundation/mariadb-devel:13.1@sha256:7723a49e7bec849c0de7b8cb74b2a30dfb1ac4706693d537ceccd0649ed66da5
+#8 resolve quay.io/mariadb-foundation/mariadb-devel:13.1@sha256:7723a49e7bec849c0de7b8cb74b2a30dfb1ac4706693d537ceccd0649ed66da5 done
+#8 DONE 0.0s
+
+#9 [db 2/4] RUN useradd --system --no-create-home --shell /usr/sbin/nologin project_socket
+#9 CACHED
+
+#10 [db 3/4] RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+#10 CACHED
+
+#11 [db 4/4] COPY database/tls/99-tls.cnf /etc/mysql/conf.d/99-tls.cnf
+#11 CACHED
+
+#12 [api build 1/7] FROM docker.io/library/node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee
+#12 resolve docker.io/library/node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee done
+#12 DONE 0.0s
+
+#13 [api internal] load build context
+#13 transferring context: 70.53kB done
+#13 DONE 0.0s
+
+#14 [api build 3/7] COPY package*.json ./
+#14 CACHED
+
+#15 [api build 2/7] WORKDIR /app
+#15 CACHED
+
+#16 [api build 4/7] RUN npm ci
+#16 CACHED
+
+#17 [api build 5/7] COPY tsconfig.json ./
+#17 CACHED
+
+#18 [api build 6/7] COPY src ./src
+#18 DONE 0.0s
+
+#19 [db] exporting to image
+#19 exporting layers done
+#19 exporting manifest sha256:5d65b947b0167f87ca6560eb96b87088fae9fa5153675bd2d79eaf25e0b4c31d done
+#19 exporting config sha256:f75dcdd1be68b72505e4558911f47a8fca8516b2e980511a37094bccbd59efe5 done
+#19 exporting attestation manifest sha256:f1fc8bb78856116f1651569cb6bccdb22490490a5a96a56b2c67654611079f2f 0.0s done
+#19 exporting manifest list sha256:3b9142a8634a471da34de1ed9a5144ed8afb6866b9a3111f9131af73902537a9 done
+#19 naming to docker.io/library/co560-rbac-1795052884-97568-db:latest done
+#19 unpacking to docker.io/library/co560-rbac-1795052884-97568-db:latest done
+#19 DONE 0.1s
+
+#20 [certificates] exporting to image
+#20 exporting layers done
+#20 exporting manifest sha256:5d65b947b0167f87ca6560eb96b87088fae9fa5153675bd2d79eaf25e0b4c31d done
+#20 exporting config sha256:f75dcdd1be68b72505e4558911f47a8fca8516b2e980511a37094bccbd59efe5 done
+#20 exporting attestation manifest sha256:7b2fed6851ab7b203ea27c706ac16bc6888bda8b3471e977ea49bc837666b890 0.0s done
+#20 exporting manifest list sha256:176c27c3381f4d34687ffa74ee60aadc33333cf1e41cc643ea747ba3ec52aaa5 done
+#20 naming to docker.io/library/co560-rbac-1795052884-97568-certificates:latest done
+#20 unpacking to docker.io/library/co560-rbac-1795052884-97568-certificates:latest done
+#20 DONE 0.1s
+
+#21 [api build 7/7] RUN npm run build
+#21 ...
+
+#22 [db] resolving provenance for metadata file
+#22 DONE 0.0s
+
+#23 [certificates] resolving provenance for metadata file
+#23 DONE 0.0s
+
+#21 [api build 7/7] RUN npm run build
+#21 0.187 
+#21 0.187 > mariadb-auth-module@1.0.0 build
+#21 0.187 > tsc
+#21 0.187 
+#21 DONE 0.9s
+
+#24 [api runtime 4/5] RUN npm ci --omit=dev
+#24 CACHED
+
+#25 [api runtime 5/5] COPY --from=build /app/dist ./dist
+#25 DONE 0.0s
+
+#26 [api] exporting to image
+#26 exporting layers 0.0s done
+#26 exporting manifest sha256:a279e613ddc7a1ac368c1a2687a291e4c9fc0ad6d7fdf5f650024da135d595be done
+#26 exporting config sha256:a4d9c8c7e383a60ba36178ec4a0849b1fa2824a4d01856633b0ba841d75a2928 done
+#26 exporting attestation manifest sha256:5523e8282f80e8b16dc5dbbd9be0ae1c1d6bdfbc22e4d3e6129a0c748528cc98 done
+#26 exporting manifest list sha256:69f0ec6da455ee92a03c02f51de006926035e10e277b6ea6e76be69b27e5627c
+#26 exporting manifest list sha256:69f0ec6da455ee92a03c02f51de006926035e10e277b6ea6e76be69b27e5627c done
+#26 naming to docker.io/library/co560-rbac-1795052884-97568-api:latest done
+#26 unpacking to docker.io/library/co560-rbac-1795052884-97568-api:latest done
+#26 DONE 0.1s
+
+#27 [api] resolving provenance for metadata file
+#27 DONE 0.0s
+ api  Built
+ certificates  Built
+ db  Built
+ Network co560-rbac-1795052884-97568_default  Creating
+ Network co560-rbac-1795052884-97568_default  Created
+ Volume "co560-rbac-1795052884-97568_public_ca"  Creating
+ Volume "co560-rbac-1795052884-97568_public_ca"  Created
+ Volume "co560-rbac-1795052884-97568_db_certificates"  Creating
+ Volume "co560-rbac-1795052884-97568_db_certificates"  Created
+ Volume "co560-rbac-1795052884-97568_mariadb_13_1_data"  Creating
+ Volume "co560-rbac-1795052884-97568_mariadb_13_1_data"  Created
+ Container co560-rbac-1795052884-97568-certificates-1  Creating
+ Container co560-rbac-1795052884-97568-certificates-1  Created
+ Container co560-rbac-1795052884-97568-db-1  Creating
+ Container co560-rbac-1795052884-97568-db-1  Created
+ Container co560-rbac-1795052884-97568-api-1  Creating
+ Container co560-rbac-1795052884-97568-api-1  Created
+ Container co560-rbac-1795052884-97568-certificates-1  Starting
+ Container co560-rbac-1795052884-97568-certificates-1  Started
+ Container co560-rbac-1795052884-97568-certificates-1  Waiting
+ Container co560-rbac-1795052884-97568-certificates-1  Exited
+ Container co560-rbac-1795052884-97568-db-1  Starting
+ Container co560-rbac-1795052884-97568-db-1  Started
+ Container co560-rbac-1795052884-97568-db-1  Waiting
+ Container co560-rbac-1795052884-97568-db-1  Healthy
+ Container co560-rbac-1795052884-97568-api-1  Starting
+ Container co560-rbac-1795052884-97568-api-1  Started
+ Container co560-rbac-1795052884-97568-api-1  Waiting
+ Container co560-rbac-1795052884-97568-certificates-1  Waiting
+ Container co560-rbac-1795052884-97568-db-1  Waiting
+ Container co560-rbac-1795052884-97568-certificates-1  Exited
+ Container co560-rbac-1795052884-97568-db-1  Healthy
+ Container co560-rbac-1795052884-97568-api-1  Healthy
+MariaDB version: 13.1.2-MariaDB-ubu2604
+PASS allowed: admin table DDL
+PASS allowed: employee public view
+PASS allowed: employee username update
+PASS allowed: reader public view
+PASS allowed: auditor audit read
+PASS denied by MariaDB: reader update
+PASS denied by MariaDB: reader password hashes
+PASS denied by MariaDB: reader audit data
+PASS denied by MariaDB: employee password hashes
+PASS denied by MariaDB: employee password modification
+PASS denied by MariaDB: employee delete
+PASS denied by MariaDB: auditor audit modification
+PASS denied by MariaDB: auditor directory
+PASS denied by MariaDB: reader DDL
+PASS denied by MariaDB: reader global account creation
+PASS denied by MariaDB: reader role escalation
+PASS denied by MariaDB: no direct privileges after disabling role
+PASS denied by MariaDB: wrong password
+PASS denied by MariaDB: revoked reader grant
+PASS allowed: restored reader grant
+PASS denied by MariaDB: DENY overrides later UPDATE grant
+PASS denied by MariaDB: DENY overrides later DELETE grant
+PASS allowed: REVOKE DENY exposes existing UPDATE grant
+PASS allowed: REVOKE DENY exposes existing DELETE grant
+PASS denied by MariaDB: restored audit protection
+PASS denied by MariaDB: registrar direct account creation
+PASS denied by MariaDB: registrar data access
+PASS denied by MariaDB: registrar invalid username
+PASS denied by MariaDB: registrar weak password
+PASS denied by MariaDB: reader provisioning
+PASS: missing and malformed authentication rejected
+PASS: API uses caller identities and preserves database denials
+PASS: registration creates restricted MariaDB accounts; password changes affect only the caller
+PASS TLS: application verifies CA and hostname; cipher TLS_AES_256_GCM_SHA384
+PASS TLS rejected: untrusted CA
+PASS TLS rejected: wrong hostname on trusted certificate
+PASS TLS rejected: plaintext TCP
+PASS TLS rejected: wrong password over verified TLS
+All TLS tests passed.
+PASS: locked MariaDB account rejected by API with HTTP 401
+
+> mariadb-access-dashboard@1.0.0 test
+> playwright test live-api.spec.ts
+
+[WebServer] (node:97932) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 1 test using 1 worker
+
+(node:97938) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 tests/live-api.spec.ts:6:1 › live proxy authenticates with MariaDB and runs access checks (719ms)
+
+  1 passed (1.6s)
+All database, API RBAC and TLS tests passed.

@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { readFileSync } from "node:fs";
 function required(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`Missing required environment variable: ${name}`);
@@ -12,5 +13,15 @@ function port(name: string, fallback: number): number {
 export const config = {
   registrationPassword: required("REGISTRATION_DB_PASSWORD"),
   port: port("PORT", 3000),
-  db: { host: required("DB_HOST"), port: port("DB_PORT", 3306), name: required("DB_NAME") },
+  db: {
+    host: required("DB_HOST"),
+    port: port("DB_PORT", 3306),
+    name: required("DB_NAME"),
+    ssl: {
+      ca: readFileSync(required("DB_SSL_CA")),
+      rejectUnauthorized: true,
+      verifyIdentity: true,
+      minVersion: "TLSv1.2" as const,
+    },
+  },
 };

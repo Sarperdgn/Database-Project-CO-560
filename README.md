@@ -15,7 +15,7 @@ A reproducible, database-first tutorial demonstrating how **MariaDB accounts, ro
 **MariaDB target:** **13.1 preview/development image** (`quay.io/mariadb-foundation/mariadb-devel:13.1` in `docker-compose.yml`, verified against `13.1.2-MariaDB-ubu2604`)  
 **Repository:** [Sarperdgn/Database-Project-CO-560](https://github.com/Sarperdgn/Database-Project-CO-560)
 
-> **Scope:** This is a local educational demonstration, not a production-ready authentication service. It implements MariaDB role enforcement, role inheritance, column/view isolation, negative grants (`DENY`), and **passwordless local OS peer authentication via MariaDB's `unix_socket` plugin (`project_socket@localhost`, `apply-unix-socket-auth.sh`)**, and verifies all controls against live MariaDB `13.1.2-MariaDB-ubu2604` across four automated test suites (with committed runtime logs under [`evidence/test-runs/`](evidence/test-runs/)) and the MariaDB Server Audit plugin. It **does not yet implement verified TLS** for TCP client connections, and the optional HTTP interface uses unencrypted HTTP Basic authentication on loopback. See [Security limitations and assignment coverage](#security-limitations-and-assignment-coverage).
+> **Scope:** This is a local educational demonstration, not a production-ready authentication service. It implements MariaDB role enforcement, role inheritance, column/view isolation, negative grants (`DENY`), and **passwordless local OS peer authentication via MariaDB's `unix_socket` plugin (`project_socket@localhost`)**, and verifies all controls against live MariaDB `13.1.2-MariaDB-ubu2604` across four automated test suites (with committed runtime logs under [`evidence/test-runs/`](evidence/test-runs/)) and the MariaDB Server Audit plugin. It **requires certificate-verified TLS** for application TCP connections; the optional HTTP interface uses unencrypted HTTP Basic authentication on loopback. See [Security limitations and assignment coverage](#security-limitations-and-assignment-coverage).
 
 ---
 
@@ -23,7 +23,7 @@ A reproducible, database-first tutorial demonstrating how **MariaDB accounts, ro
 
 A security model is more convincing when a disallowed SQL statement still fails **after the API is bypassed**. This project gives each kind of user a separate MariaDB account, assigns an appropriate default role, and places grants and denials in SQL scripts. Readers can connect directly to MariaDB to test the exact same rules that the HTTP API encounters.
 
-- **Native & alternative passwordless authentication:** MariaDB validates the credentials of each account that opens a protected connection (`connectAs` per request), and [`apply-unix-socket-auth.sh`](apply-unix-socket-auth.sh) / [`database/init/03-unix-socket.sql`](database/init/03-unix-socket.sql) provisions `project_socket@localhost IDENTIFIED VIA unix_socket` for passwordless local OS peer authentication ([`UNIX_SOCKET_AUTH.md`](UNIX_SOCKET_AUTH.md)).
+- **Native & alternative passwordless authentication:** MariaDB validates the credentials of each account that opens a protected connection (`connectAs` per request), and [`database/init/03-unix-socket.sql`](database/init/03-unix-socket.sql) provisions `project_socket@localhost IDENTIFIED VIA unix_socket` for passwordless local OS peer authentication ([Unix-socket guide](#unix-socket-guide)).
 - **Role-based access control (RBAC) & role inheritance:** `role_admin`, `role_employee`, `role_readonly`, `role_auditor`, and `role_registration` isolate privileges by responsibility, and composite roles (`GRANT role_a TO role_b`) demonstrate multi-role privilege inheritance.
 - **Fine-grained least privilege:** A `SQL SECURITY DEFINER` public-column view (`user_directory`) and column-scoped grants (`SELECT (id)`, `UPDATE (username)` on `app_users`) avoid exposing `password_hash` or allowing unrestricted updates, with MariaDB distinguishing object-level (`ERROR 1142`), column-level (`ERROR 1143`), invoker-view (`ERROR 1356`), and routine-level (`ERROR 1370`) denials.
 - **Explicit negative privileges & conflict resolution:** MariaDB **13.1 `DENY`** (stored in `mysql.global_priv` under `$.denies`) overrides conflicting positive `GRANT` statements across the same role, across inherited roles, between direct user grants and active role grants, and downward across schema $\rightarrow$ table $\rightarrow$ column and routine levels.
@@ -65,12 +65,14 @@ Protected API requests ([`src/db.ts`](src/db.ts), [`src/app.ts`](src/app.ts)) ea
 
 ## 2. Requirements and quick start
 
+For the complete disposable security demonstration, run `bash scripts/demo.sh` from a clean checkout. See [TLS setup and reproducibility](#verified-database-tls-and-reproducible-demonstration) and [current verification](#current-verification--2026-11-19) for the latest results.
+
 You need **Docker Engine**, **Docker Compose v2**, and an internet connection to pull `quay.io/mariadb-foundation/mariadb-devel:13.1` and build the Node.js container. To run the repository's RBAC + API test suite, you also need **Node.js 22+** and npm. The fine-grained and audit-verification test suites require **Bash** and **Python 3**.
 
 ```bash
 git clone https://github.com/Sarperdgn/Database-Project-CO-560.git
 cd Database-Project-CO-560
-cp .env.example .env
+cp demo.env.example .env
 ```
 
 **Edit `.env` and replace every demonstration password.** Never commit `.env` or real credentials. Then start an isolated project:
@@ -180,7 +182,7 @@ Connect directly to the database as the read-only account (enter its password fr
 
 ```bash
 docker compose -p co560-demo exec db \
-  mariadb --protocol=tcp -h127.0.0.1 -u project_reader -p auth_project
+  mariadb --ssl-ca=/certs/ca.pem --ssl-verify-server-cert --protocol=tcp -h127.0.0.1 -u project_reader -p auth_project
 ```
 
 Run the following statements **one at a time**:
@@ -247,7 +249,7 @@ Use [`database/examples/inspect.sql`](database/examples/inspect.sql), [`database
 
 ## 6. Optional Express HTTP demonstration
 
-The TypeScript API ([`src/app.ts`](src/app.ts), [`src/db.ts`](src/db.ts), [`INTEGRATION.md`](INTEGRATION.md)) is intentionally thin: it validates requests with Zod, opens a MariaDB connection with the caller's credentials, issues parameterized SQL, translates MariaDB authentication/permission error numbers (`1045`, `1142`, `1143`, `1227`, `1370`, `30001`) into HTTP status codes (`400`, `401`, `403`, `409`), and closes the connection.
+The TypeScript API ([`src/app.ts`](src/app.ts), [`src/db.ts`](src/db.ts), [backend extension contract](#backend-extension-contract)) is intentionally thin: it validates requests with Zod, opens a MariaDB connection with the caller's credentials, issues parameterized SQL, translates MariaDB authentication/permission error numbers (`1045`, `1142`, `1143`, `1227`, `1370`, `30001`) into HTTP status codes (`400`, `401`, `403`, `409`), and closes the connection.
 
 | Endpoint | Authentication | Operation |
 | --- | --- | --- |
@@ -501,7 +503,7 @@ To guarantee absolute reproducibility and satisfy the rubric requirement that te
 
 ### 7.6 Visual test and security verification screenshots (`evidence/screenshots/`)
 
-To inspect and capture visual evidence on a live terminal, run:
+The following screenshots are historical evidence. To inspect scenarios on a live terminal, run:
 ```bash
 bash scripts/show-screenshot-scenarios.sh
 ```
@@ -511,13 +513,13 @@ bash scripts/show-screenshot-scenarios.sh
 | **01** | All test suites passing (RBAC, Fine-Grained, Audit, Socket) | Automated test harness verification | [`evidence/screenshots/01-test-suites-pass.png`](evidence/screenshots/01-test-suites-pass.png) |
 | **02** | Column privilege denial & restricted view isolation | `SQL SECURITY DEFINER` view & `ERROR 1143` | [`evidence/screenshots/02-column-privilege-denial.png`](evidence/screenshots/02-column-privilege-denial.png) |
 | **03** | MariaDB 13.1 explicit negative grant (`DENY`) conflict | `mysql.global_priv` JSON `$.denies` & `ERROR 1142` | [`evidence/screenshots/03-deny-override-conflict.png`](evidence/screenshots/03-deny-override-conflict.png) |
-| **04** | MariaDB Server Audit plugin tamper-evident log stream | `server_audit` (`CONNECT,QUERY`) fail-closed audit | [`evidence/screenshots/04-server-audit-logging.png`](evidence/screenshots/04-server-audit-logging.png) |
+| **04** | MariaDB Server Audit plugin local log stream | `server_audit` (`CONNECT,QUERY`) fail-closed audit | [`evidence/screenshots/04-server-audit-logging.png`](evidence/screenshots/04-server-audit-logging.png) |
 | **05** | Alternative passwordless OS peer auth (`unix_socket`) | Native `unix_socket` plugin & `ERROR 1698` rejection | [`evidence/screenshots/05-unix-socket-peer-auth.png`](evidence/screenshots/05-unix-socket-peer-auth.png) |
 
 <details>
 <summary><b>Click to expand inline terminal screenshots</b></summary>
 
-#### 01. All Test Suites Passing (RBAC, Fine-Grained, Server Audit, Unix Socket)
+#### 01. Historical test screenshot (RBAC, Fine-Grained, Server Audit, Unix Socket)
 ![01 Test Suites Passing](evidence/screenshots/01-test-suites-pass.png)
 
 #### 02. Column Privilege Denial & Restricted View Isolation
@@ -526,7 +528,7 @@ bash scripts/show-screenshot-scenarios.sh
 #### 03. MariaDB 13.1 Explicit Negative Grant (DENY) & Conflict Resolution
 ![03 DENY Conflict Resolution](evidence/screenshots/03-deny-override-conflict.png)
 
-#### 04. MariaDB Server Audit Tamper-Evident Log Output
+#### 04. MariaDB Server Audit Local Log Output
 ![04 Server Audit Logging](evidence/screenshots/04-server-audit-logging.png)
 
 #### 05. Alternative Non-Password Authentication (unix_socket plugin)
@@ -549,7 +551,7 @@ bash scripts/show-screenshot-scenarios.sh
 | **Abuse of self-service registration to create admin accounts or run SQL injection** | `role_registration` restricted to `EXECUTE ON PROCEDURE register_account`; strict regex `^signup_[a-z0-9_]{3,24}$` and `role_readonly` assignment | Direct `CREATE USER` or `SELECT` by `project_registrar` fails with **`ERROR 1227` / `1142`**; invalid names/short passwords fail with **`ERROR 30001` (`HTTP 400`)** | Any anonymous HTTP client can register a `signup_*` account up to database storage limits; rate limiting must be maintained at the web tier. |
 | **Mismatched local OS identity or unauthorized TCP access to passwordless socket account** | MariaDB `unix_socket` authentication plugin (`CREATE USER 'project_socket'@'localhost' IDENTIFIED VIA unix_socket`) | Non-matching OS user (`nobody`) fails with **`ERROR 1045` / `1698`**; TCP passwordless attempts fail with **`ERROR 1045` / `1698`** | Unix-socket authentication is restricted to the local container environment; processes running under the `project_socket` OS identity inside the container can authenticate without a password. |
 | **Silent probing of forbidden tables, columns, or roles** | MariaDB `server_audit` plugin (`FORCE_PLUS_PERMANENT`, `CONNECT,QUERY`) in [`99-server-audit.cnf`](database/audit/99-server-audit.cnf) | Every login and failed query (`1045`, `1142`, `1143`, `1959`, `4151`) is written to `/var/lib/mysql/vedant-server-audit.log` | Audit logging is detective, not preventive. Raw `QUERY` logs may record sensitive SQL literals, and a host operator with root access to the Docker volume can read or alter local log files. |
-| **Network eavesdropping on credentials or queries in transit** | Published ports bind only to loopback (`127.0.0.1`); local root bootstrap uses `--protocol=socket` | Prevents direct external LAN exposure during local development | Client accounts use standard password authentication over TCP without verified TLS (`ssl: { rejectUnauthorized: true }`) or elliptic-curve plugins (`ed25519` / `parsec`), and HTTP Basic runs over plain HTTP locally. |
+| **Network eavesdropping on credentials or queries in transit** | Published ports bind only to loopback (`127.0.0.1`); local root bootstrap uses `--protocol=socket` | Prevents direct external LAN exposure during local development | Database TCP requires TLS; the application verifies the CA and hostname. HTTP Basic still runs over plain HTTP on loopback. |
 
 ### Security limitations and assignment coverage
 
@@ -560,13 +562,13 @@ The [Area 5 rubric](https://mariadb.org/bachelor_hackathon_2026-09/#5-authentica
 | **Role-based access control (`CREATE ROLE`, `GRANT`, `REVOKE`, `SET DEFAULT ROLE`)** | **Implemented & Verified** | [`database/security/02-roles.sql.in`](database/security/02-roles.sql.in), composite role inheritance (`role_support_lead`), [`evidence/test-runs/01-rbac-tests.log`](evidence/test-runs/01-rbac-tests.log) |
 | **MariaDB 13.1 `DENY` (negative grants) & conflict resolution** | **Implemented & Verified** | Schema, table, column, and routine `DENY` (`mysql.global_priv` `$.denies`), inherited role conflicts (`role_compliance_lead`), [`database/examples/deny.sql`](database/examples/deny.sql), [`evidence/test-runs/02-fine-grained-security-tests.log`](evidence/test-runs/02-fine-grained-security-tests.log) |
 | **Fine-grained views (`SQL SECURITY DEFINER` vs `INVOKER`) & column privileges** | **Implemented & Verified** | `user_directory` view (`01-schema.sql`), column-scoped grants (`app_users`), [`database/examples/fine-grained-security.sql`](database/examples/fine-grained-security.sql), [`evidence/test-runs/02-fine-grained-security-tests.log`](evidence/test-runs/02-fine-grained-security-tests.log) |
-| **Alternative, non-password authentication method** | **Implemented & Verified** | Native MariaDB `unix_socket` plugin (`project_socket@localhost IDENTIFIED VIA unix_socket`) via [`apply-unix-socket-auth.sh`](apply-unix-socket-auth.sh), [`UNIX_SOCKET_AUTH.md`](UNIX_SOCKET_AUTH.md), [`scripts/test-unix-socket-local.sh`](scripts/test-unix-socket-local.sh), [`evidence/test-runs/04-unix-socket-tests.log`](evidence/test-runs/04-unix-socket-tests.log) |
+| **Alternative, non-password authentication method** | **Implemented & Verified** | Native MariaDB `unix_socket` plugin (`project_socket@localhost IDENTIFIED VIA unix_socket`) via fresh-volume initialization, [Unix-socket guide](#unix-socket-guide), [`scripts/test-unix-socket-local.sh`](scripts/test-unix-socket-local.sh), [`evidence/test-runs/04-unix-socket-tests.log`](evidence/test-runs/04-unix-socket-tests.log) |
 | **Attacks against each control & MariaDB Server Audit evidence** | **Implemented & Verified** | Fail-closed `server_audit` plugin ([`database/audit/99-server-audit.cnf`](database/audit/99-server-audit.cnf)), [`scripts/test-security-audit-local.sh`](scripts/test-security-audit-local.sh), [`evidence/test-runs/03-security-audit-tests.log`](evidence/test-runs/03-security-audit-tests.log) |
-| **Certificate-verified MariaDB TLS (`ssl: { rejectUnauthorized: true }`)** | **Not Implemented** | Documented as residual risk; TCP connections between API and MariaDB do not configure verified TLS certificates |
+| **Certificate-verified MariaDB TLS (`ssl: { rejectUnauthorized: true }`)** | **Implemented** | `src/config.ts`, `database/tls/`, and `scripts/test-tls.mjs`; current results below |
 
 - **Implemented and verified against MariaDB `13.1.2-MariaDB-ubu2604`:** MariaDB 13.1 role assignments, multi-role inheritance, and explicit `DENY` across schema, table, column, and routine levels; conflict resolution between positive `GRANT` and negative `DENY`; object-level (`1142`) vs column-level (`1143`) vs invoker-view (`1356`) vs routine-level (`1370`) enforcement; `SQL SECURITY DEFINER` registration and `SQL SECURITY INVOKER` password-change routines; alternative passwordless OS peer authentication via the MariaDB `unix_socket` plugin (`project_socket@localhost`); disposable test harnesses with full unedited runtime execution logs committed under [`evidence/test-runs/`](evidence/test-runs/); and Server Audit plugin (`server_audit`) verification.
-- **Not implemented / not evidenced:** **verified MariaDB TLS** (the application connection does not configure TLS). The existing API still uses password-based database connections; the separately provisioned `project_socket@localhost` account demonstrates Unix-socket authentication.
-- **Deployment limitations:** HTTP Basic is plaintext without HTTPS; the audit plugin is opt-in via `docker-compose.audit.yml`, can capture sensitive SQL literals, and logs to a local container volume. Use verified TLS and off-host log retention before considering production deployment.
+- **Database transport:** certificate-verified TLS is mandatory in the application; MariaDB rejects plaintext TCP. Password authentication and local Unix-socket peer authentication remain separate controls.
+- **Deployment limitations:** HTTP Basic is plaintext without HTTPS; the audit plugin is opt-in via `docker-compose.audit.yml`, can capture sensitive SQL literals, and logs to a local container volume. Add HTTPS and off-host log retention before considering production deployment.
 
 ---
 
@@ -577,16 +579,15 @@ Area 5 requires implementing a non-password or alternative authentication method
 - **OS identity binding:** The Docker container builds from [`database/Dockerfile`](database/Dockerfile), creating a system user `project_socket`.
 - **Database account & default role:** [`database/init/03-unix-socket.sql`](database/init/03-unix-socket.sql) provisions `project_socket@localhost IDENTIFIED VIA unix_socket`, grants `role_readonly`, and sets it as the default role.
 - **Security boundary:** No password is required or accepted; MariaDB checks the Unix domain socket peer credentials against the OS process uid. Attempting to log in as `project_socket` from another OS user (`nobody`) is rejected with **`ERROR 1045` / `1698`**, and TCP passwordless attempts are rejected with **`ERROR 1045` / `1698`**.
-- **Automated verification:** Run `bash scripts/test-unix-socket-local.sh` to execute the full integration test in a disposable container. See [`UNIX_SOCKET_AUTH.md`](UNIX_SOCKET_AUTH.md) for full interactive usage and architecture documentation.
+- **Automated verification:** Run `bash scripts/test-unix-socket-local.sh` to execute the full integration test in a disposable container. See [Unix-socket guide](#unix-socket-guide) for full interactive usage and architecture documentation.
 
 ## 9. Repository map
 
 ```text
 .
 ├── README.md                                    # Consolidated architecture, tutorial, and verified test results
-├── UNIX_SOCKET_AUTH.md                          # Dedicated guide for alternative Unix-socket authentication
-├── apply-unix-socket-auth.sh                    # Automated setup for Unix-socket authentication
-├── .env.example                                 # Local environment template
+├── apply-unix-socket-auth.sh                    # Compatibility entry point for socket verification
+├── demo.env.example                                 # Local environment template
 ├── docker-compose.yml                           # MariaDB 13.1 (with Dockerfile build) + Express API
 ├── docker-compose.audit.yml                     # Optional Server Audit plugin override
 ├── database/
@@ -620,7 +621,7 @@ Area 5 requires implementing a non-password or alternative authentication method
 │       ├── 02-fine-grained-security-tests.log   # Fine-grained security & conflict test execution log
 │       ├── 03-security-audit-tests.log          # Server Audit and negative attack execution log
 │       └── 04-unix-socket-tests.log             # Alternative Unix-socket authentication execution log
-└── INTEGRATION.md                               # Backend extension contract
+
 ```
 
 ---
@@ -648,6 +649,187 @@ This is a Constructor University **CO-560 Database Core** student project:
 
 ## Browser access console
 
-The optional React frontend in [`frontend/`](frontend/README.md) provides a responsive, wide workspace for the real API: user directory and username edits, sample audit records, registration, password changes, a role-policy matrix, read-only live access checks, and an Area 5 evidence guide. After starting the backend above, run `cd frontend && npm install && npm run dev` and open `http://127.0.0.1:5173`. Credentials remain in page memory and MariaDB continues to enforce permissions.
+The optional React frontend in [`frontend/`](frontend/) provides a responsive, wide workspace for the real API: user directory and username edits, sample audit records, registration, a role-policy matrix and read-only live access checks. After starting the backend above, run `cd frontend && npm ci && npm run dev` and open `http://127.0.0.1:5173`. Credentials remain in page memory and MariaDB continues to enforce permissions.
 
-The course guide distinguishes committed database evidence from current API observations and explicitly marks verified database TLS as outstanding. Browser tests (`cd frontend && npm test`, after installing Playwright Chromium) use controlled responses; rerun the existing Docker test harnesses for actual database security verification.
+Browser observations and database test evidence are separate. Browser tests (`cd frontend && npm test`, after installing Playwright Chromium) use controlled responses; rerun the existing Docker test harnesses for actual database security verification.
+
+
+## Backend extension contract
+
+The authoritative security policy is in [`database/security`](database/security), with the schema and directory view in [`database/init/01-schema.sql`](database/init/01-schema.sql).
+
+Each request must execute SQL through a connection authenticated as that caller's real MariaDB account. `src/db.ts` exposes `connectAs(username, password)`; `src/app.ts` demonstrates connection ownership, parameter binding, error translation, and cleanup. The runtime holds the restricted registrar credential and CA path; protected routes use caller credentials.
+
+For a new route, use the existing `databaseRoute` wrapper in `src/app.ts`. Validate inputs, execute a fixed parameterized statement on its supplied connection, and return the result. Add required privileges to the appropriate MariaDB role in SQL. Do not introduce a shared privileged pool, a user-selected role, or TypeScript permission checks as the authorization boundary. Test both the SQL directly and the route with allowed and disallowed database accounts.
+
+`CURRENT_USER()` identifies the authenticated MariaDB account; `CURRENT_ROLE()` reports the active role. An `app_users.id` is sample domain data, not an authenticated principal. The previous `requireAuth`, application registration, and JWT contract has been removed. See [README.md](README.md) for endpoints, fresh-volume setup, and local transport limitations.
+
+
+## Unix-socket guide
+
+This is an **alternative MariaDB login method** for a dedicated local OS identity, separate from the HTTP Basic / MariaDB password logins used by the existing Express API.
+
+`database/Dockerfile` adds the Linux user `project_socket` to the MariaDB container. On fresh-volume initialization, `database/init/03-unix-socket.sql` creates the matching database account `project_socket@localhost` with MariaDB's `unix_socket` plugin, grants the existing `role_readonly`, and makes it the default role. MariaDB reads the operating system peer identity from the Unix socket. No MariaDB password is stored for this account.
+
+## Test (requires Docker with Compose v2)
+
+```bash
+bash scripts/test-unix-socket-local.sh
+```
+
+The integration test uses a uniquely named, disposable Compose project, verifies passwordless socket login, `CURRENT_USER()` and `CURRENT_ROLE()`, an authorized directory read, unauthorized writes and private reads, forbidden role escalation, an OS-user mismatch, and attempted TCP authentication. Every negative test asserts the **specific MariaDB error code**; a broken connection does not count as an authorization success. Its database volume is deleted at the end. Do **not** use `docker compose down -v` against your existing project.
+
+To inspect interactively in your regular Compose project *after starting with a fresh database volume*:
+
+```bash
+docker compose exec -u project_socket db \
+  mariadb --no-defaults --protocol=socket -u project_socket --skip-password auth_project
+```
+
+If you already have a database volume, the bootstrap SQL **will not run again**. Apply `database/init/03-unix-socket.sql` as an administrator to that existing database after adding the OS user via the updated Docker image, then recreate the database container. Do not delete your populated volume.
+
+## Security boundary
+
+The socket grants only the read-only database role; no SQL superuser authority or host-wide access is granted. Unix-socket authentication works only **inside the DB container**, where the matching OS user exists and can open the socket. It does not turn HTTP Basic into passwordless login or work across the API container's TCP connection. A process that can run as `project_socket` in the DB container can authenticate as that MariaDB account; restrict container and Docker-daemon access. This feature does not provide TCP encryption/TLS.
+
+
+## Frontend usage and verification
+
+React, TypeScript and Vite UI for internal testing of the existing MariaDB API. The backend enforces all permissions using each caller's MariaDB credentials. Credentials remain in component memory and reload signs out.
+
+## Run
+
+Start the repository's backend using its root README, then:
+
+```sh
+cd frontend
+npm install
+npm run dev
+```
+
+Open http://127.0.0.1:5173. Development and local preview proxy `/api` and `/health` to http://127.0.0.1:3000. Set `API_PROXY_TARGET` when the backend uses another port. No backend CORS or authentication changes are required.
+
+With the backend offline, use http://127.0.0.1:5173/?preview=1. This isolated preview uses a fictional identity, the initial directory fixture, and an empty audit table. It sends no backend requests.
+
+## Supported screens
+
+- Overview of identity, active role, directory and audit-table access.
+- Search directory rows and submit username updates.
+- Read and filter the audit table, including stored IP and creation time when rows exist.
+- Reference matrix for seeded roles.
+- Read-only access checks against existing endpoints.
+- Sign-in and read-only account registration.
+
+Course guide and Account settings have been removed. The audit table is not an automatically collected login history: the current backend reads it but never inserts events or captures client IPs. The optional MariaDB Server Audit file is not exposed by the API. See [Frontend API contract](#frontend-api-contract) for fields, limitations and exact request contracts.
+
+## Verification
+
+```sh
+npm run build
+npm run test:api # requires repository root dependencies
+npx playwright install chromium
+npm test
+```
+
+Transport tests run without a backend. Browser workflow tests use controlled responses. For the live smoke test, start the backend, set `CO560_USERNAME` and `CO560_PASSWORD` in the environment, and run `npm test -- live-api.spec.ts`. It is skipped when credentials are absent. Do not commit credentials.
+
+The latest contract review was performed with the backend offline; live database enforcement is not claimed as freshly verified. This interface is for the local internal lab and does not add production hosting or security configuration.
+
+
+## Frontend API contract
+
+Checked against `src/app.ts`, `src/db.ts`, `database/init/01-schema.sql` and the role SQL on 2026-11-02. No backend changes were made for this review.
+
+| UI action | Request | Backend response / behavior |
+| --- | --- | --- |
+| Sign in / refresh identity | GET /api/me, HTTP Basic | Array containing `{account, role}`; role can be null. Each request authenticates directly with MariaDB. |
+| Directory | GET /api/users, HTTP Basic | `{id, email, username}[]`, ordered by ID ascending, maximum 100 rows. These are domain records, not database accounts. |
+| Edit username | PATCH /api/users/:id, HTTP Basic, `{username}` | 3 to 50 ASCII letters, digits, underscores, periods or hyphens. Returns `Update executed`, even if no row matched. UI reports execution, then reloads; it does not claim a row count or confirmed persistence. |
+| Audit table | GET /api/audit, HTTP Basic | `SELECT * FROM login_audit ORDER BY id DESC LIMIT 100`. Empty on fresh initialization. |
+| Register | POST /api/auth/register, `{username, password}` | `signup_` followed by 3 to 24 lowercase letters, digits or underscores; password length 12 to 128. Returns HTTP 201 with username. Provisions a MariaDB read-only account, not a directory row. |
+| Access lab availability | GET /health | `{status: "ok"}` confirms the API process only, not database connectivity. |
+
+The password-change endpoint still exists in the backend but is not exposed in this UI, per the requested removal of Account settings. No role editing, account deletion, SQL console, or server-audit-file endpoint is available.
+
+## IP addresses and timestamps
+
+`login_audit` contains `id`, nullable `user_id`, `attempted_email`, `success`, `reason`, nullable `ip_address`, and `created_at`. The timestamp defaults to CURRENT_TIMESTAMP when a row is inserted. IP is a nullable string with no automatic capture or default.
+
+The current API contains no INSERT into this table, no client-IP capture, and no login-event writer. Signing in, registration, refresh, and access checks do not create table rows. The UI displays only returned values, labels absent IPs as Not recorded, and explains the empty state. Offset-bearing timestamps display in the browser's timezone with seconds and a timezone label. Timezone-free strings are preserved instead of assigning an unverified timezone. The backend driver’s timezone configuration is not changed.
+
+The optional MariaDB Server Audit plugin writes CONNECT/QUERY events to a file in the database container. That file is distinct from login_audit and cannot be read through this API. It must not be presented as a live browser-IP feed.
+
+## Offline preview and verification
+
+`/?preview=1` is isolated from API requests. It shows the schema's initial student directory fixture and an empty audit table, with an explicitly fictional administrator identity. It does not authenticate, modify rows, or verify permissions.
+
+Frontend production build and transport tests can run without a backend. Browser workflow tests use controlled responses; the opt-in live test requires a running backend and CO560_USERNAME / CO560_PASSWORD. Code-contract alignment does not establish live end-to-end correctness while the backend is offline.
+
+
+## Verified database TLS and reproducible demonstration
+
+Requirements: Docker Engine/Desktop with Compose v2, Bash, Python 3, and network access for initial image/package downloads. Host Node.js is needed only for frontend development, not the database demonstration. From a clean checkout, run:
+
+```bash
+bash scripts/demo.sh
+```
+
+This runs RBAC/API/TLS, fine-grained privileges and DENY, Server Audit, and Unix-socket tests in uniquely named Compose projects, each with fresh data and certificate volumes, random published ports, and automatic cleanup. It does not use your `.env` credentials or delete your normal database. A failure exits nonzero; negative assertions check specific errors rather than treating any connection failure as success.
+
+For a persistent interactive stack:
+
+```bash
+cp demo.env.example .env
+# Change the demonstration passwords in .env.
+docker compose -p co560-demo up --build -d --wait
+```
+
+The `certificates` init service creates a private CA and a 30-day server certificate with SANs `db`, `localhost`, and `127.0.0.1`. Only the public CA is mounted in the API; the server key is readable only by MariaDB. The CA signing key is temporary and deleted after issuance. Certificates are runtime volume contents, never committed or baked into images. On repeat starts the generator validates and reuses the certificate; expired certificates fail closed. To renew this local demo without deleting database data, stop the project, remove only its `db_certificates` and `public_ca` volumes, and start it again. Production requires managed certificate issuance and rotation.
+
+`database/tls/99-tls.cnf` sets `require_secure_transport=ON` and TLS 1.2/1.3. Unix sockets remain valid secure local transport. `src/config.ts` requires `DB_SSL_CA`, reads the CA at startup, and configures `rejectUnauthorized: true` plus `verifyIdentity: true`; no plaintext fallback exists. All caller and registrar connections pass through this configuration. To run the API outside Docker, export the public CA using `docker compose -p co560-demo cp api:/public/ca.pem ./demo-ca.pem`, then set `DB_SSL_CA` to that path, `DB_HOST=127.0.0.1`, `DB_PORT=3307`, `DB_NAME=auth_project`, and the registrar password. Never disable verification to work around configuration errors.
+
+```mermaid
+flowchart LR
+  Browser -->|HTTP Basic on loopback| API[Express: per-request caller connection]
+  CA[Certificate init service] -->|public CA only| API
+  CA -->|certificate and private key| DB[MariaDB 13.1]
+  API -->|TLS: CA and hostname verified| DB
+  DB --> Roles[Roles / views / column grants / DENY]
+  Peer[Matching container OS identity] -->|Unix socket peer authentication| DB
+```
+
+The TLS tests verify a negotiated cipher through the actual application connection, reject an untrusted chain and a hostname mismatch, reject plaintext TCP, and reject incorrect passwords over verified TLS. Server authentication is certificate-based; client authentication remains MariaDB passwords (this is not mutual TLS). API `/health` is a process health check, not proof of database authentication; the test suite uses protected routes to establish that.
+
+GitHub Actions runs the committed socket configuration without rewriting source files, covers fine-grained privileges alongside RBAC/TLS, and builds/tests the frontend, including a live browser test against the isolated database. Logs are uploaded as workflow artifacts. Hosted CI status is only established after the changes are pushed and Actions runs.
+
+Configuration references: [MariaDB TLS setup](https://mariadb.com/docs/server/security/encryption/data-in-transit-encryption/data-in-transit-encryption-enabling-tls-on-mariadb-server), [mysql2 SSL options](https://sidorares.github.io/node-mysql2/docs/documentation/ssl).
+
+### Current verification — 2026-11-19
+
+Results are recorded after executing the changed checkout below. Earlier logs and screenshots in `evidence/` are historical and do not prove TLS was enabled at the time.
+
+
+| Verification | Result | Evidence |
+| --- | --- | --- |
+| Backend TypeScript and frontend production builds | Passed | `npm run build`; `npm --prefix frontend run build` |
+| RBAC, API authentication, registration/password lifecycle, TLS | Passed | [Full demo log](evidence/test-runs/2026-11-19-security-demo.log) |
+| Fine-grained grants, inherited roles, DENY conflicts | Passed | Same full demo log |
+| Server Audit events and Unix-socket allowed/denied logins | Passed | Same full demo log |
+| Frontend transport contract | 12/12 passed | `npm --prefix frontend run test:api` |
+| Browser workflows with controlled API responses | 8/8 passed; live test skipped in this run | [Browser log](evidence/test-runs/2026-11-19-browser-workflows.log) |
+| Browser against real MariaDB over verified application TLS | 1/1 passed in separate live run | [Live browser + TLS log](evidence/test-runs/2026-11-19-live-browser-tls.log) |
+
+Executed on macOS ARM64 with Docker Desktop, MariaDB `13.1.2-MariaDB-ubu2604`, and Node 22. The demo used fresh project volumes and the container build installed dependencies with `npm ci`. This validates a clean Docker initialization on this machine, not an independently provisioned physical machine. Database and Node base images are pinned by manifest digest; npm lockfiles are committed. Initial downloads still require network access. Hosted Actions has not yet run these unpushed changes.
+
+To reproduce the live browser verification after installing frontend dependencies and Chromium:
+
+```bash
+npm ci
+npm --prefix frontend ci
+(cd frontend && npx playwright install chromium)
+RUN_BROWSER_TESTS=1 bash scripts/test-rbac-local.sh
+```
+
+The test writes `frontend/test-results/live-access.png`. The screenshot below shows a real reader session: identity and directory access succeed while the audit-table request is denied. TLS is established by the accompanying connection tests, not inferred from the browser UI.
+
+![Real reader access checks against the TLS-enabled MariaDB stack](evidence/screenshots/06-live-tls-access.png)

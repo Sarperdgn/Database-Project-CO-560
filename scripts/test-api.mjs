@@ -22,6 +22,10 @@ for (const [actor, role] of [['reader','readonly'], ['employee','employee'], ['a
   assert.equal(identity.role, `role_${role}`);
 }
 await request(null, '/api/users', 401);
+for (const authorization of ['Bearer invalid', 'Basic !!!', 'Basic ' + Buffer.from('missingcolon').toString('base64'), 'Basic ' + Buffer.from(':password').toString('base64')]) {
+  assert.equal((await fetch('http://127.0.0.1:3000/api/me', {headers: {authorization}})).status, 401);
+}
+console.log('PASS: missing and malformed authentication rejected');
 const patch = { method: 'PATCH', body: JSON.stringify({ username: 'api_updated' }) };
 await request('reader', '/api/users/1', 403, patch);
 await request('employee', '/api/users/1', 200, patch);

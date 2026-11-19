@@ -70,7 +70,7 @@ reject 'mismatched OS identity' '1045|1698' \
 
 reject 'TCP passwordless login' '1045|1698' \
   "${COMPOSE[@]}" exec -T -u project_socket db \
-    mariadb --no-defaults --protocol=tcp --host=127.0.0.1 \
+    mariadb --no-defaults --ssl-ca=/certs/ca.pem --ssl-verify-server-cert --protocol=tcp --host=127.0.0.1 \
     --user=project_socket --skip-password auth_project -e 'SELECT 1;'
 
 echo 'All Unix-socket authentication tests passed.'

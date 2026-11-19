@@ -38,7 +38,7 @@ echo "Starting isolated MariaDB 13.1 stack $TEST_PROJECT (disposable volume)..."
 sql() {
   local account="$1" password="$2" statement="$3"
   "${COMPOSE[@]}" exec -T -e "MYSQL_PWD=$password" db \
-    mariadb --protocol=tcp -h127.0.0.1 -u"$account" auth_project -Nse "$statement"
+    mariadb --ssl-ca=/certs/ca.pem --ssl-verify-server-cert --protocol=tcp -h127.0.0.1 -u"$account" auth_project -Nse "$statement"
 }
 root_sql() {
   "${COMPOSE[@]}" exec -T -e MYSQL_PWD=omer-temporary-test-root db \

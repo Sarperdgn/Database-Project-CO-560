@@ -42,10 +42,19 @@ jobs:
           npm ci
           npm run build
 
+      - name: Install live browser test dependencies
+        run: |
+          npm --prefix frontend ci
+          cd frontend
+          npx playwright install --with-deps chromium
+
       - name: Test real MariaDB accounts, roles, GRANT and DENY
         run: |
           mkdir -p .ci-results
-          bash scripts/test-rbac-local.sh 2>&1 | tee .ci-results/mariadb-rbac.log
+          RUN_BROWSER_TESTS=1 bash scripts/test-rbac-local.sh 2>&1 | tee .ci-results/mariadb-rbac.log
+
+      - name: Test fine-grained authorization and role conflicts
+        run: bash scripts/test-fine-grained-security-local.sh 2>&1 | tee .ci-results/fine-grained.log
 
       - name: Add database authorization evidence to run summary
         if: success()
@@ -64,6 +73,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mariadb-rbac-test-output
-          path: .ci-results/mariadb-rbac.log
+          path: |
+            .ci-results/*.log
+            frontend/test-results
           if-no-files-found: ignore
           retention-days: 7

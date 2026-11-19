@@ -1,0 +1,7 @@
+[mariadb]
+ssl_ca=/certs/ca.pem
+ssl_cert=/certs/server.pem
+ssl_key=/certs/server-key.pem
+require_secure_transport=ON
+tls_version=TLSv1.2,TLSv1.3
+unix_socket=FORCE

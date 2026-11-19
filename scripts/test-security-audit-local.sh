@@ -46,7 +46,7 @@ echo "Starting isolated project $TEST_PROJECT (temporary volume destroyed on exi
 sql() {
   local account="$1" password="$2" statement="$3"
   "${COMPOSE[@]}" exec -T -e "MYSQL_PWD=$password" db \
-    mariadb --protocol=tcp -h127.0.0.1 -u"$account" auth_project -Nse "$statement"
+    mariadb --ssl-ca=/certs/ca.pem --ssl-verify-server-cert --protocol=tcp -h127.0.0.1 -u"$account" auth_project -Nse "$statement"
 }
 root_sql() {
   "${COMPOSE[@]}" exec -T -e MYSQL_PWD=vedant-temporary-test-root db \
