@@ -56,7 +56,7 @@ An optional Express API and React console expose the same rules over HTTP. The A
 
 | Capability | Why it needs MariaDB |
 | --- | --- |
-| **`DENY` / `REVOKE DENY`** | New in **MariaDB 13.1** ([MDEV-14443](https://jira.mariadb.org/browse/MDEV-14443)). MySQL and PostgreSQL have no negative grants: "everything except this table" there means listing every allowed table. |
+| **`DENY` / `REVOKE DENY`** | New in **MariaDB 13.1** ([MDEV-14443](https://jira.mariadb.org/browse/MDEV-14443)). PostgreSQL has no negative grants, and MySQL's partial revokes can only carve a whole schema out of a global grant. "Everything except this table or column" there means listing every allowed object. |
 | **`unix_socket` authentication** | The OS user *is* the credential; no password is stored. |
 | **Role model** (default roles, roles inside roles) | The inheritance and conflict experiments depend on MariaDB's semantics. |
 | **Privileges as JSON in `mysql.global_priv`** | Every `DENY` is stored in the `$.denies` key, which the tests read back. |
@@ -69,6 +69,8 @@ Classic grants only add up. `DENY` adds a **ceiling**: no later `GRANT` lifts it
 **You need:** Docker with Compose v2, Bash and Python 3. Node.js 22+ only for the browser console. Developed on macOS (Apple silicon) with Docker Desktop; CI runs on Ubuntu x86_64.
 
 **Run every test** (as above): `bash scripts/demo.sh` starts four separate throwaway stacks with fresh certificates, runs each suite, and deletes everything. It does not touch any database you keep. Any failure exits non-zero.
+
+> **If the build stops with `not found` for the `mariadb-devel` image:** the image is a preview build pinned by digest, and the registry can delete old digests (this happened once, on 2026-11-23). Change the first line of [database/Dockerfile](database/Dockerfile) to `FROM quay.io/mariadb-foundation/mariadb-devel:13.1` and run `bash scripts/demo.sh` again, or re-pin with the digest from `docker buildx imagetools inspect quay.io/mariadb-foundation/mariadb-devel:13.1`.
 
 **Explore by hand** with a stack that stays up:
 
@@ -101,7 +103,7 @@ The API is at http://127.0.0.1:3000 (for example `curl -u project_reader http://
  password_hash        ← secret          ip_address, created_at
  is_active, locked_until,
  failed_login_attempts, token_version   user_directory (VIEW, SQL SECURITY DEFINER)
- created_at, updated_at                 = SELECT id, email, username FROM app_users
+ last_login_at, created_at, updated_at  = SELECT id, email, username FROM app_users
 ```
 
 Files: [01-schema.sql](database/init/01-schema.sql), then the security templates in [database/security/](database/security/). Design decisions:
@@ -125,7 +127,7 @@ flowchart LR
 ```
 
 - [src/db.ts](src/db.ts): `connectAs(user, password)` opens one verified-TLS connection per request and destroys it afterwards. No shared privileged pool.
-- [src/app.ts](src/app.ts): input validation (Zod), parameterized SQL, and MariaDB error codes mapped to HTTP (1045/4151 → 401, 1142/1143/1370 → 403).
+- [src/app.ts](src/app.ts): input validation (Zod), parameterized SQL, and MariaDB error codes mapped to HTTP (1044/1045/1698/4151 → 401, 1142/1143/1227/1370 → 403, 30001 → 400).
 - [database/tls/](database/tls/): [generate.sh](database/tls/generate.sh) creates a private CA and server certificate at startup (never committed); [99-tls.cnf](database/tls/99-tls.cnf) sets `require_secure_transport=ON` and TLS 1.2/1.3.
 - [scripts/](scripts/): four test suites, each in its own disposable Compose project.
 
@@ -141,7 +143,9 @@ flowchart LR
 | `role_admin` | All | All | All (only inside `auth_project.*`) |
 | `role_registration` | No | No | No; may only `CALL register_account` |
 
-**DENY**: grant broadly, then subtract.
+`role_readonly`, `role_employee` and `role_auditor` may also `CALL change_own_password` ([03-self-service.sql.in](database/security/03-self-service.sql.in)).
+
+**DENY**: grant broadly, then subtract. This is the "everything except that table" scenario from [test-fine-grained-security-local.sh](scripts/test-fine-grained-security-local.sh); the installed policy uses the narrower grants in the table above.
 
 ```sql
 GRANT SELECT ON auth_project.* TO role_readonly;              -- "read everything..."
@@ -162,7 +166,7 @@ DENY  SELECT ON auth_project.app_users TO role_readonly;      -- "...except this
 5. **`UPDATE ... WHERE id = ?` needs `SELECT (id)`.** Without it, a user who may update `username` still gets 1143 for column `id`.
 6. **A column `DENY` on a view breaks `SELECT *`.** `DENY SELECT (email)` on `user_directory` allows `SELECT id, username` but rejects `SELECT *` (1143).
 7. **`DEFINER` and `INVOKER` views fail differently.** A caller without base-table rights reads a `DEFINER` view fine, but gets 1356 from an `INVOKER` view.
-8. **Denies are stored as JSON.** Each one appears under `$.denies` in `mysql.global_priv`, not in the classic privilege tables, so `SELECT ... FROM mysql.tables_priv` alone won't show them.
+8. **Denies are stored as JSON.** Each one appears under `$.denies` in the `Priv` column of `mysql.global_priv`, where the test reads it back.
 9. **A routine-level `DENY EXECUTE` beats `GRANT EXECUTE`** (1370).
 
 ## 7. Which control stops which attack
@@ -199,11 +203,11 @@ Recorded run on 2026-11-19: macOS ARM64, Docker Desktop, MariaDB 13.1.2, fresh v
 
 ## 9. What is still unprotected
 
-- **The API's own database password is in `.env`.** `REGISTRATION_DB_PASSWORD` (and every role account's password) is read from the file. Anyone who reads `.env` can log in as those accounts. Moving the registrar to `unix_socket`, or the accounts to ED25519/PARSEC, is not done yet.
+- **The API's own database password is in `.env`.** The API reads `REGISTRATION_DB_PASSWORD` from it, and the root and role-account passwords are stored there too. Anyone who reads `.env` can log in as those accounts. Moving the registrar to `unix_socket`, or the accounts to ED25519/PARSEC, is not done yet.
 - **No lockout after repeated wrong passwords** at the database. The API rate limiter covers only `/api`.
 - **`ACCOUNT LOCK` blocks new logins only**; sessions that are already open keep running.
 - **The browser-to-API hop is plain HTTP Basic** on loopback; there is no HTTPS.
-- **TLS authenticates the server only**; clients do not present certificates. Certificates last 30 days and are not rotated automatically.
+- **TLS authenticates the server only**; clients do not present certificates. The server certificate lasts 30 days (the CA 365) and is not rotated automatically.
 - **Anyone who can run as `project_socket` inside the database container is in**, without a password. Protect Docker access accordingly.
 - **Column grants are not row-level security**: an employee can rename *any* user.
 - **`root`, or anyone with `GRANT OPTION`, can `REVOKE DENY`**; `project_admin` is not bound by the auditor's `DENY`.
