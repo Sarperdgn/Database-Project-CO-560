@@ -1,4 +1,4 @@
-FROM quay.io/mariadb-foundation/mariadb-devel:13.1@sha256:7723a49e7bec849c0de7b8cb74b2a30dfb1ac4706693d537ceccd0649ed66da5
+FROM quay.io/mariadb-foundation/mariadb-devel:13.1@sha256:1318772c2f00cd67d483921bc144f493d9720aaf53699894f6472715a65ef224
 
 RUN useradd --system --no-create-home --shell /usr/sbin/nologin project_socket
 
